@@ -1,5 +1,5 @@
 {
-  "name": "aadhar-pan-extractor",
+  "name": "ocr-tool",
   "version": "0.0.0",
   "engines": {
     "node": "18.x",
