@@ -27,6 +27,9 @@ export class HomeComponent {
   // Store extracted results
   extractedResults: Array<{fileName: string, cardType: string, number: string, name: string, dob?: string}> = [];
 
+  // API base URL - empty string for production (relative URLs) or localhost for development
+  private apiBaseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+
   constructor(private http: HttpClient) {}
 
   async extractCardDetails(cardType: string) {
@@ -47,10 +50,10 @@ export class HomeComponent {
           formData.append('image', file);
 
           // Send to backend for processing with Sharp
-          const response: any = await this.http.post('http://localhost:3000/process-image', formData).toPromise();
+          const response: any = await this.http.post(`${this.apiBaseUrl}/process-image`, formData).toPromise();
 
           // Get the URL of the processed image
-          const processedImageUrl = `http://localhost:3000${response.processedUrl}`;
+          const processedImageUrl = `${this.apiBaseUrl}${response.processedUrl}`;
 
           // Use Tesseract to perform OCR on the processed image
           const result = await Tesseract.recognize(processedImageUrl, 'eng');
