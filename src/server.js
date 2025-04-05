@@ -8,17 +8,27 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// Create Express application without using new patterns
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS
-app.use(cors());
+// Enable CORS with specific options to prevent URL parsing issues
+app.use(cors({ 
+  origin: true, // Allow all origins
+  credentials: true // Allow credentials
+}));
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads/' : './uploads/';
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Add debugging middleware
+app.use((req, res, next) => {
+  console.log(`Request: ${req.method} ${req.url}`);
+  next();
+});
 
 // Configure multer for file uploads
 const upload = multer({ dest: uploadsDir });
@@ -52,10 +62,11 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
     let imageToProcess = inputPath;
 
     // Handle PDF files
-    if (isPDF(inputPath)) {
+    if (isPDF(req.file.originalname)) {
       try {
         imageToProcess = await convertPDFToImage(inputPath);
       } catch (error) {
+        console.error('PDF conversion error:', error);
         // If PDF conversion fails, return the original file
         return res.json({
           success: true,
@@ -75,6 +86,7 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
           .threshold(128)
           .toFile(processedPath);
     } catch (error) {
+      console.error('Sharp processing error:', error);
       // If Sharp processing fails, try a simple copy as fallback
       processedPath = imageToProcess + '-unprocessed.png';
       fs.copyFileSync(imageToProcess, processedPath);
@@ -96,20 +108,32 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
       processedUrl: `/processed-images/${path.basename(processedPath)}`
     });
   } catch (error) {
+    console.error('Error processing image:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Serve uploaded files
+// Serve uploaded files - specify exact path format to avoid regexp issues
 app.use('/processed-images', express.static(uploadsDir));
 
 // Serve static files from the Angular app
-app.use(express.static(path.join(__dirname, '../dist/ocr-tool')));
+const staticPath = path.join(__dirname, '../dist/ocr-tool');
+console.log('Serving static files from:', staticPath);
+app.use(express.static(staticPath));
+
+// Handle API routes first, before the catch-all
+
+// Special escape for problematic URLs - must be placed before catch-all route
+app.get('/git.new/*', (req, res) => {
+  res.status(404).send('Not found');
+});
 
 // Catch all other routes and return the Angular app
+// Use string path to avoid regexp issues
 app.get('*', (req, res) => {
   try {
     const indexPath = path.join(__dirname, '../dist/ocr-tool/index.html');
+    console.log('Serving index from:', indexPath);
     
     // Check if index.html exists
     if (fs.existsSync(indexPath)) {
@@ -125,9 +149,8 @@ app.get('*', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log('Environment:', process.env.NODE_ENV || 'development');
   console.log('Uploads directory:', uploadsDir);
-  console.log('Static files directory:', path.join(__dirname, '../dist/ocr-tool'));
 });
