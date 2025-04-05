@@ -4,8 +4,8 @@ import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
 import * as pdfjs from 'pdfjs-dist';
 
-// Set the worker path
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+// Set the worker path to match the current version (5.1.91)
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.1.91/pdf.worker.min.js';
 
 @Component({
   selector: 'app-home',
