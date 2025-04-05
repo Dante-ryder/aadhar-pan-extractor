@@ -1,5 +1,5 @@
 {
-  "name": "ocr-tool",
+  "name": "aadhar-pan-extractor",
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
@@ -7,7 +7,8 @@
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "heroku-postbuild": "ng build --configuration production"
+    "heroku-postbuild": "npm install && ng build --configuration production",
+    "debug": "bash heroku-debug.sh"
   },
   "private": true,
   "dependencies": {

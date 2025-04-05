@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "ocr-tool": {
+    "aadhar-pan-extractor": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -63,10 +63,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "ocr-tool:build:production"
+              "buildTarget": "aadhar-pan-extractor:build:production"
             },
             "development": {
-              "buildTarget": "ocr-tool:build:development"
+              "buildTarget": "aadhar-pan-extractor:build:development"
             }
           },
           "defaultConfiguration": "development"
