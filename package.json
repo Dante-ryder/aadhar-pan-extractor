@@ -1,14 +1,14 @@
 {
-  "name": "aadhar-pan-extractor",
+  "name": "ocr-tool",
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "start": "node src/server.js",
-    "build": "ng build --configuration production",
+    "build": "ng build --output-path=dist",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "heroku-postbuild": "npm install && npm run build",
-    "debug": "bash heroku-debug.sh"
+    "heroku-postbuild": "npm install && ng build --configuration production --output-path=dist",
+    "postinstall": "echo 'Checking build directory' && ls -la dist || echo 'dist directory not found'"
   },
   "private": true,
   "dependencies": {
@@ -38,9 +38,6 @@
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.2.1",
-    "@angular-devkit/core": "^19.2.1",
-    "@angular-devkit/schematics": "^19.2.1",
-    "@schematics/angular": "^19.2.1",
     "@types/jasmine": "~5.1.0",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
@@ -50,7 +47,7 @@
     "karma-jasmine-html-reporter": "~2.1.0"
   },
   "engines": {
-    "node": "18.19.0",
-    "npm": "9.1.2"
+    "node": "18.x",
+    "npm": "9.x"
   }
 }
