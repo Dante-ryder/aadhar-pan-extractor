@@ -1,34 +1,27 @@
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const sharp = require('sharp');
-const fs = require('fs');
-const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Enable CORS
 app.use(cors());
 
-// Set up file storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
+// Create uploads directory if it doesn't exist
+const uploadsDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads/' : './uploads/';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-const upload = multer({ storage });
+// Configure multer for file uploads
+const upload = multer({ dest: uploadsDir });
 
 // Function to check if file is PDF
 function isPDF(filePath) {
@@ -78,9 +71,9 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
     try {
       processedPath = imageToProcess + '-processed.png';
       await sharp(imageToProcess)
-        .resize(800)
-        .threshold(128)
-        .toFile(processedPath);
+          .resize(800)
+          .threshold(128)
+          .toFile(processedPath);
     } catch (error) {
       // If Sharp processing fails, try a simple copy as fallback
       processedPath = imageToProcess + '-unprocessed.png';
@@ -107,9 +100,21 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
   }
 });
 
-// Serve processed images
-app.use('/processed-images', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files
+app.use('/processed-images', express.static(uploadsDir));
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Serve static files from the Angular app
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Catch all other routes and return the Angular app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
+// Start the server
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('Uploads directory:', uploadsDir);
+  console.log('Static files directory:', path.join(__dirname, '../dist'));
 });
