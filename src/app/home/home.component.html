@@ -1,0 +1,80 @@
+<header class="m-3 align-items-center justify-content-center d-flex">
+  <h1>Aadhar and PAN Card OCR</h1>
+</header>
+
+<section>
+  @if (!refreshing) {
+    <div class="container">
+      <div class="row d-flex justify-content-center align-items-center">
+        <div class="col">
+          <img ngSrc="assets/aadhar.png" alt="aadhar" height="300" width="500" priority>
+          <div class="d-flex m-3">Choose Aadhar documents</div>
+          <input type="file" id="aadhar" name="aadhar" (change)="onAadharSelected($event)" multiple><br><br>
+          <ul>
+            @for (file of aadharFiles; track i; let i = $index) {
+              <li>
+                {{ file.name }}
+                <button (click)="removeFile(aadharFiles, i)">Remove</button>
+              </li>
+            }
+          </ul>
+          <button type="submit" class="btn btn-primary" (click)="processAadharFiles()">Upload</button>
+        </div>
+        <div class="col">
+          <img ngSrc="assets/pan.png" alt="pan" height="300" width="500" priority>
+          <div class="d-flex m-3">Choose PAN documents</div>
+          <input type="file" id="pan" name="pan" (change)="onPanSelected($event)" multiple><br><br>
+          <ul>
+            @for (file of panFiles; track i; let i = $index) {
+              <li>
+                {{ file.name }}
+                <button (click)="removeFile(panFiles,i)">Remove</button>
+              </li>
+            }
+          </ul>
+          <button type="submit" class="btn btn-primary" (click)="processPanFiles()">Upload</button>
+        </div>
+      </div>
+
+      <!-- Results Section -->
+      @if (extractedResults.length > 0) {
+        <div class="row mt-4">
+          <div class="col-12">
+            <h3>Extracted Data</h3>
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Number</th>
+                  <th>DOB</th>
+                  <th>File Name</th>
+                  <th>Card Type</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (result of extractedResults; track result.fileName; let i = $index) {
+                  <tr>
+                    <td>{{ result.name }}</td>
+                    <td>{{ result.number }}</td>
+                    <td>{{ result.dob || 'Not available' }}</td>
+                    <td>{{ result.fileName }}</td>
+                    <td>{{ result.cardType }}</td>
+                    <td>
+                      <button class="btn btn-sm btn-danger" (click)="removeExtractedResult(i)">✕</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <div class="mt-3">
+              <button class="btn btn-success me-2" (click)="downloadCSV('ALL')">Download All as CSV</button>
+              <button class="btn btn-info me-2" (click)="downloadCSV('AADHAR')">Download Aadhar Data</button>
+              <button class="btn btn-warning" (click)="downloadCSV('PAN')">Download PAN Data</button>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</section>
