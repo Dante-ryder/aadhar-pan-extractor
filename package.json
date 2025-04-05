@@ -7,7 +7,7 @@
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "heroku-postbuild": "npm install && ng build --configuration production",
+    "heroku-postbuild": "npm install && npm run build",
     "debug": "bash heroku-debug.sh"
   },
   "private": true,
@@ -50,7 +50,7 @@
     "karma-jasmine-html-reporter": "~2.1.0"
   },
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": "18.12.1",
+    "npm": "9.1.2"
   }
 }

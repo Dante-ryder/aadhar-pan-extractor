@@ -108,14 +108,19 @@ app.use(express.static(path.join(__dirname, '../dist')));
 
 // Catch all other routes and return the Angular app
 app.get('*', (req, res) => {
-  const indexPath = path.join(__dirname, '../dist/index.html');
-
-  // Check if index.html exists
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    console.error('Error: index.html not found at', indexPath);
-    res.status(500).send('Server Error: index.html not found. Please check build configuration.');
+  try {
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    
+    // Check if index.html exists
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      console.error('Error: index.html not found at', indexPath);
+      res.status(500).send('Server Error: index.html not found. Please check build configuration.');
+    }
+  } catch (error) {
+    console.error('Error serving index.html:', error);
+    res.status(500).send('Server Error: ' + error.message);
   }
 });
 
