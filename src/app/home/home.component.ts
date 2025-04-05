@@ -1,11 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
 import * as pdfjs from 'pdfjs-dist';
-
-// Set the worker path to match the current version (5.1.91)
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.1.91/pdf.worker.min.js';
 
 @Component({
   selector: 'app-home',
@@ -15,7 +12,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pd
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit {
   aadharFiles: File[] = [];
   panFiles: File[] = [];
   cardTypes: Record<string, RegExp> = {
@@ -31,6 +28,12 @@ export class HomeComponent {
   private apiBaseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
   constructor(private http: HttpClient) {}
+
+  ngOnInit() {
+    // Testing PDF.js worker initialization
+    console.log('PDF.js version:', pdfjs.version);
+    console.log('PDF.js worker source:', pdfjs.GlobalWorkerOptions.workerSrc);
+  }
 
   async extractCardDetails(cardType: string) {
     const files = cardType === 'AADHAR' ? this.aadharFiles : this.panFiles;
