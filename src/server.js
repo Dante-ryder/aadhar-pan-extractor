@@ -117,7 +117,7 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
 app.use('/processed-images', express.static(uploadsDir));
 
 // Serve static files from the Angular app
-const staticPath = path.join(__dirname, '../dist/ocr-tool');
+const staticPath = path.join(__dirname, '../dist/aadhar-pan-extractor');
 console.log('Serving static files from:', staticPath);
 app.use(express.static(staticPath));
 
@@ -132,7 +132,7 @@ app.get('/git.new/*', (req, res) => {
 // Use string path to avoid regexp issues
 app.get('*', (req, res) => {
   try {
-    const indexPath = path.join(__dirname, '../dist/ocr-tool/index.html');
+    const indexPath = path.join(__dirname, '../dist/aadhar-pan-extractor/index.html');
     console.log('Serving index from:', indexPath);
     
     // Check if index.html exists
