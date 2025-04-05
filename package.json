@@ -2,7 +2,7 @@
   "name": "ocr-tool",
   "version": "0.0.0",
   "engines": {
-    "node": "16.x",
+    "node": "18.x",
     "npm": "8.x"
   },
   "scripts": {
