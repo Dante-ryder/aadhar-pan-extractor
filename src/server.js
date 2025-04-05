@@ -104,12 +104,12 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
 app.use('/processed-images', express.static(uploadsDir));
 
 // Serve static files from the Angular app
-app.use(express.static(path.join(__dirname, '../dist')));
+app.use(express.static(path.join(__dirname, '../dist/ocr-tool')));
 
 // Catch all other routes and return the Angular app
 app.get('*', (req, res) => {
   try {
-    const indexPath = path.join(__dirname, '../dist/index.html');
+    const indexPath = path.join(__dirname, '../dist/ocr-tool/index.html');
     
     // Check if index.html exists
     if (fs.existsSync(indexPath)) {
@@ -129,5 +129,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log('Environment:', process.env.NODE_ENV || 'development');
   console.log('Uploads directory:', uploadsDir);
-  console.log('Static files directory:', path.join(__dirname, '../dist'));
+  console.log('Static files directory:', path.join(__dirname, '../dist/ocr-tool'));
 });
