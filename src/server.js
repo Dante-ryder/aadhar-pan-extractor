@@ -117,7 +117,30 @@ app.post('/process-image', upload.single('image'), async (req, res) => {
 app.use('/processed-images', express.static(uploadsDir));
 
 // Serve static files from the Angular app
-const staticPath = path.join(__dirname, '../dist');
+// Check multiple potential build locations - newer Angular outputs to dist/ocr-tool/browser
+let staticPath;
+const possiblePaths = [
+  path.join(__dirname, '../dist/ocr-tool/browser'),  // Angular v19+ default
+  path.join(__dirname, '../dist/ocr-tool'),          // Legacy or custom output
+  path.join(__dirname, '../dist')                    // Direct output
+];
+
+for (const pathToCheck of possiblePaths) {
+  if (fs.existsSync(pathToCheck)) {
+    console.log(`Found build files at: ${pathToCheck}`);
+    staticPath = pathToCheck;
+    break;
+  }
+}
+
+if (!staticPath) {
+  console.log('WARNING: Could not find build files in any expected location!');
+  console.log('Directory contents of parent:', fs.readdirSync(path.join(__dirname, '..')));
+  
+  // Default to a path for server to start properly
+  staticPath = path.join(__dirname, '../dist');
+}
+
 console.log('Serving static files from:', staticPath);
 app.use(express.static(staticPath));
 
@@ -132,7 +155,8 @@ app.get('/git.new/*', (req, res) => {
 // Use string path to avoid regexp issues
 app.get('*', (req, res) => {
   try {
-    const indexPath = path.join(__dirname, '../dist/index.html');
+    // Look for index.html in the same location we found static files
+    const indexPath = path.join(staticPath, 'index.html');
     console.log('Serving index from:', indexPath);
     
     // Check if index.html exists
