@@ -1,0 +1,13 @@
+{
+  "name": "aadhar-pan-extractor",
+  "description": "OCR tool for extracting data from Aadhar and PAN cards",
+  "buildpacks": [
+    { "url": "heroku/nodejs" },
+    { "url": "https://github.com/heroku/heroku-buildpack-apt" }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "value": "production"
+    }
+  }
+}
