@@ -24,6 +24,30 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Add file cleanup schedule for Heroku's ephemeral filesystem
+if (process.env.NODE_ENV === 'production') {
+  console.log('Running in production mode - enabling automatic file cleanup');
+  // Run cleanup every 15 minutes
+  setInterval(() => {
+    console.log('Running scheduled file cleanup');
+    try {
+      const files = fs.readdirSync(uploadsDir);
+      const now = Date.now();
+      files.forEach(file => {
+        const filePath = path.join(uploadsDir, file);
+        const stats = fs.statSync(filePath);
+        // Remove files older than 30 minutes
+        if (now - stats.mtime.getTime() > 30 * 60 * 1000) {
+          fs.unlinkSync(filePath);
+          console.log(`Deleted old file: ${filePath}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error during file cleanup:', error);
+    }
+  }, 15 * 60 * 1000); // 15 minutes
+}
+
 // Add debugging middleware
 app.use((req, res, next) => {
   console.log(`Request: ${req.method} ${req.url}`);
@@ -44,12 +68,27 @@ async function convertPDFToImage(pdfPath) {
   try {
     console.log('Converting PDF to image:', pdfPath);
     const outputImagePath = pdfPath + '-page0.png';
-    await execPromise(`convert -density 300 "${pdfPath}[0]" -quality 100 "${outputImagePath}"`);
-    console.log('PDF converted successfully to:', outputImagePath);
-    return outputImagePath;
+    
+    try {
+      // Check if ImageMagick is installed and available
+      await execPromise('which convert');
+      await execPromise(`convert -density 300 "${pdfPath}[0]" -quality 100 "${outputImagePath}"`);
+      console.log('PDF converted successfully with ImageMagick to:', outputImagePath);
+      return outputImagePath;
+    } catch (imgError) {
+      // If ImageMagick fails, try a fallback approach using copy
+      console.warn('ImageMagick not available or failed:', imgError.message);
+      console.log('Using fallback method for PDF handling');
+      
+      // Just copy file as-is and let client-side handle it
+      const fallbackPath = pdfPath + '-fallback.pdf';
+      fs.copyFileSync(pdfPath, fallbackPath);
+      return fallbackPath;
+    }
   } catch (error) {
-    console.error('Error converting PDF to image:', error);
-    throw new Error('Failed to convert PDF to image. Make sure ImageMagick is installed.');
+    console.error('Error handling PDF:', error);
+    // Return original path as fallback
+    return pdfPath;
   }
 }
 
