@@ -4,8 +4,9 @@ import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
 import * as pdfjs from 'pdfjs-dist';
 
-// Set the worker source using a CDN that matches our package version
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+// Set the worker source dynamically based on the actual loaded PDF.js version
+// This ensures the worker version always matches the library version
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 @Component({
   selector: 'app-home',
