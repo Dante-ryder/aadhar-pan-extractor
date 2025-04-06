@@ -4,9 +4,8 @@ import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
 import * as pdfjs from 'pdfjs-dist';
 
-// Set the worker source dynamically based on the actual loaded PDF.js version
-// This ensures the worker version always matches the library version
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+// Set the worker source to match the actual loaded API version 3.4.120
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`;
 
 @Component({
   selector: 'app-home',
@@ -24,6 +23,8 @@ export class HomeComponent {
     AADHAR: /\d{4}\s?\d{4}\s?\d{4}/,
   };
   refreshing = false;
+  processing = false;
+  processingMessage = '';
 
   // Store extracted results
   extractedResults: Array<{fileName: string, cardType: string, number: string, name: string, dob?: string}> = [];
@@ -35,6 +36,10 @@ export class HomeComponent {
 
   async extractCardDetails(cardType: string) {
     const files = cardType === 'AADHAR' ? this.aadharFiles : this.panFiles;
+
+    // Set processing state
+    this.processing = true;
+    this.processingMessage = `Processing ${files.length} ${cardType} document${files.length > 1 ? 's' : ''}. Please wait...`;
 
     for (const file of files) {
       try {
@@ -73,7 +78,6 @@ export class HomeComponent {
           dob: extractedData.DOB
         });
       } catch (error) {
-        console.error('Error processing file:', file.name, error);
         // Still add an entry with error information
         this.extractedResults.push({
           fileName: file.name,
@@ -84,6 +88,10 @@ export class HomeComponent {
         });
       }
     }
+
+    // Reset processing state when done
+    this.processing = false;
+    this.processingMessage = '';
   }
 
   // Simple method to extract text from PDF using PDF.js
@@ -107,7 +115,6 @@ export class HomeComponent {
 
           resolve(text);
         } catch (error) {
-          console.error('PDF.js error:', error);
           // If PDF.js fails, return an empty string and let the rest of the flow continue
           resolve('');
         }
@@ -119,25 +126,65 @@ export class HomeComponent {
 
   // Function to extract card details using the provided regex
   extractDetails(ocrText: string, cardType: string) {
-    const regex = new RegExp(this.cardTypes[cardType]);
-    const matches = ocrText.match(regex);
-    const result: {Number: string, Name?: string, DOB?: string} = {
-      Number: matches ? matches[0] : `${cardType} Number not found`,
+    // First, handle PAN number with improved OCR correction
+    let matches = null;
+    let result: {Number: string, Name?: string, DOB?: string} = {
+      Number: `${cardType} Number not found`,
     };
 
-    // Extract name based on card type
     if (cardType === 'PAN') {
-      // For PAN cards, name typically appears after "Name" label
-      const nameMatch = ocrText.match(/Name\s*[:\.]?\s*([A-Za-z\s]+)/i);
-      if (nameMatch && nameMatch[1]) {
-        result.Name = nameMatch[1].trim();
+      // Try with OCR correction for PAN numbers
+      const correctedText = this.correctOcrForPan(ocrText);
+      const regex = new RegExp(this.cardTypes[cardType]);
+      matches = correctedText.match(regex);
+
+      if (matches && matches[0]) {
+        result.Number = matches[0];
       }
-    } else if (cardType === 'AADHAR') {
+
+      // Extract name from line after "TR/ Name" or "Name" text
+      const lines = ocrText.split(/\r?\n/);
+      
+      // Find line containing Name or TR/ Name
+      const nameLineIndex = lines.findIndex(line => /\b(TR\/\s*Name|Name)\b/i.test(line));
+      
+      if (nameLineIndex >= 0 && nameLineIndex < lines.length - 1) {
+        // Get the next line which should have the name
+        const nameLine = lines[nameLineIndex + 1].trim();
+        
+        // Extract the actual name by taking the uppercase alphabetic part from the beginning
+        // PAN card names are always uppercase
+        const nameMatch = nameLine.match(/^([A-Z\s]+)/i);
+        if (nameMatch && nameMatch[1] && nameMatch[1].length > 2) {
+          result.Name = nameMatch[1].trim();
+        }
+      }
+      
+      // If name not found with above method, try fallback methods
+      if (!result.Name) {
+        // Try traditional pattern
+        const nameMatch = ocrText.match(/Name\s*[:\.]?\s*([A-Z\s]+)/i);
+        if (nameMatch && nameMatch[1]) {
+          result.Name = nameMatch[1].trim();
+        } else {
+          // Try to find any all-caps words that might be a name
+          const allCapsMatch = ocrText.match(/([A-Z]{2,}\s+[A-Z]{2,}(?:\s+[A-Z]{2,})?)/i);
+          if (allCapsMatch && allCapsMatch[1] && allCapsMatch[1].length > 4) {
+            result.Name = allCapsMatch[1].trim();
+          }
+        }
+      }
+    } else {
+      // For other card types, use the standard regex
+      const regex = new RegExp(this.cardTypes[cardType]);
+      matches = ocrText.match(regex);
+      if (matches && matches[0]) {
+        result.Number = matches[0];
+      }
+
       // For Aadhar cards, look for name before S/O, D/O, or W/O
-      
-      // Pattern to find name before relationship indicator
-      const nameMatch = ocrText.match(/([A-Za-z\s]+)\s+(?:S\/O|D\/O|W\/O|Son Of|Daughter Of|Wife Of)/i);
-      
+      const nameMatch = ocrText.match(/([A-Z\s]+)\s+(?:S\/O|D\/O|W\/O|Son Of|Daughter Of|Wife Of)/i);
+
       if (nameMatch && nameMatch[1]) {
         result.Name = nameMatch[1].trim();
       } else {
@@ -164,7 +211,7 @@ export class HomeComponent {
             result.Name = nameWords.join(' ');
           } else {
             // Second fallback - look for a capitalized name pattern
-            const fallbackMatch = ocrText.match(/([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+            const fallbackMatch = ocrText.match(/([A-Z]{2,}\s+[A-Z]{2,}(?:\s+[A-Z]{2,})?)/i);
             if (fallbackMatch && fallbackMatch[1]) {
               result.Name = fallbackMatch[1].trim();
             }
@@ -172,7 +219,7 @@ export class HomeComponent {
         }
       }
     }
-    
+
     // Extract DOB
     const dobMatch = ocrText.match(/(?:DOB|Date of Birth|Year of Birth)[\s:]*\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
     if (dobMatch && dobMatch[1]) {
@@ -184,8 +231,48 @@ export class HomeComponent {
         result.DOB = dateMatch[1].trim();
       }
     }
-    
+
     return result;
+  }
+
+  // Helper function to correct common OCR errors for PAN card numbers
+  correctOcrForPan(text: string): string {
+    // Find all potential PAN-like sequences (10 characters)
+    const panMatches = text.match(/[A-Z0-9]{10}/ig) || [];
+
+    let correctedText = text;
+    for (const match of panMatches) {
+      // Convert to array of characters
+      const chars = match.split('');
+
+      // Apply position-specific corrections based on PAN card format (AAAAA0000A)
+      // First 5 positions should be letters
+      for (let i = 0; i < 5; i++) {
+        // Convert numbers to similar-looking letters
+        if (chars[i] === '0') chars[i] = 'O';
+        if (chars[i] === '1') chars[i] = 'I';
+        if (chars[i] === '8') chars[i] = 'B';
+      }
+
+      // Next 4 positions should be numbers
+      for (let i = 5; i < 9; i++) {
+        // Convert letters to similar-looking numbers
+        if (chars[i] === 'O' || chars[i] === 'o') chars[i] = '0';
+        if (chars[i] === 'I' || chars[i] === 'l' || chars[i] === 'L') chars[i] = '1';
+        if (chars[i] === 'B') chars[i] = '8';
+      }
+
+      // Last position should be a letter
+      if (chars[9] === '0') chars[9] = 'O';
+      if (chars[9] === '1') chars[9] = 'I';
+      if (chars[9] === '8') chars[9] = 'B';
+
+      // Replace the original match with the corrected one
+      const corrected = chars.join('');
+      correctedText = correctedText.replace(match, corrected);
+    }
+
+    return correctedText;
   }
 
   // Download extracted data as CSV
@@ -216,7 +303,7 @@ export class HomeComponent {
     document.body.appendChild(link);
     link.click();
   }
-  
+
   onAadharSelected(event: any): void {
     this.aadharFiles = Array.from(event.target.files);
   }
@@ -226,10 +313,18 @@ export class HomeComponent {
   }
 
   processAadharFiles(): void {
+    if (this.aadharFiles.length === 0) {
+      alert('Please select at least one Aadhar document to process');
+      return;
+    }
     this.extractCardDetails('AADHAR');
   }
 
   processPanFiles(): void {
+    if (this.panFiles.length === 0) {
+      alert('Please select at least one PAN document to process');
+      return;
+    }
     this.extractCardDetails('PAN');
   }
 

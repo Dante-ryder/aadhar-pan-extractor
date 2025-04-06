@@ -36,6 +36,20 @@
         </div>
       </div>
 
+      <!-- Processing Message -->      
+      @if (processing) {
+        <div class="row mt-3">
+          <div class="col-12">
+            <div class="alert alert-info text-center">
+              <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <strong>{{ processingMessage }}</strong>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Results Section -->
       @if (extractedResults.length > 0) {
         <div class="row mt-4">
