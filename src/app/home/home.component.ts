@@ -1,8 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
-import * as pdfjs from 'pdfjs-dist';
 
 @Component({
   selector: 'app-home',
@@ -12,7 +11,7 @@ import * as pdfjs from 'pdfjs-dist';
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent {
   aadharFiles: File[] = [];
   panFiles: File[] = [];
   cardTypes: Record<string, RegExp> = {
@@ -29,39 +28,24 @@ export class HomeComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
-  ngOnInit() {
-    // Testing PDF.js worker initialization
-    console.log('PDF.js version:', pdfjs.version);
-    console.log('PDF.js worker source:', pdfjs.GlobalWorkerOptions.workerSrc);
-  }
-
   async extractCardDetails(cardType: string) {
     const files = cardType === 'AADHAR' ? this.aadharFiles : this.panFiles;
 
     for (const file of files) {
       try {
-        // Check if file is PDF
-        const isPdf = file.type === 'application/pdf';
-        let text = '';
+        // Create form data to send to backend
+        const formData = new FormData();
+        formData.append('image', file);
 
-        if (isPdf) {
-          // Process PDF with PDF.js
-          text = await this.extractTextFromPdf(file);
-        } else {
-          // Create form data to send to backend
-          const formData = new FormData();
-          formData.append('image', file);
+        // Send to backend for processing with Sharp
+        const response: any = await this.http.post(`${this.apiBaseUrl}/process-image`, formData).toPromise();
 
-          // Send to backend for processing with Sharp
-          const response: any = await this.http.post(`${this.apiBaseUrl}/process-image`, formData).toPromise();
+        // Get the URL of the processed image
+        const processedImageUrl = `${this.apiBaseUrl}${response.processedUrl}`;
 
-          // Get the URL of the processed image
-          const processedImageUrl = `${this.apiBaseUrl}${response.processedUrl}`;
-
-          // Use Tesseract to perform OCR on the processed image
-          const result = await Tesseract.recognize(processedImageUrl, 'eng');
-          text = result.data.text;
-        }
+        // Use Tesseract to perform OCR on the processed image
+        const result = await Tesseract.recognize(processedImageUrl, 'eng');
+        const text = result.data.text;
 
         // Extract details based on the card type and provided regexes
         const extractedData = this.extractDetails(text, cardType);
@@ -75,38 +59,17 @@ export class HomeComponent implements OnInit {
           dob: extractedData.DOB
         });
       } catch (error) {
-        throw error;
+        console.error('Error processing file:', file.name, error);
+        // Still add an entry with error information
+        this.extractedResults.push({
+          fileName: file.name,
+          cardType: cardType,
+          number: 'Error - could not process file',
+          name: 'Error',
+          dob: ''
+        });
       }
     }
-  }
-
-  // Simple method to extract text from PDF using PDF.js
-  async extractTextFromPdf(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async (e: ProgressEvent<FileReader>) => {
-        try {
-          if (!e.target || !e.target.result) {
-            reject(new Error('Failed to read file'));
-            return;
-          }
-
-          const typedArray = new Uint8Array(e.target.result as ArrayBuffer);
-          const pdf = await pdfjs.getDocument(typedArray).promise;
-
-          // Get text from first page only for simplicity
-          const page = await pdf.getPage(1);
-          const textContent = await page.getTextContent();
-          const text = textContent.items.map((item: any) => item.str).join(' ');
-
-          resolve(text);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
-    });
   }
 
   // Function to extract card details using the provided regex
@@ -206,15 +169,7 @@ export class HomeComponent implements OnInit {
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', `${cardType === 'ALL' ? 'all' : cardType.toLowerCase()}_extracted_data.csv`);
     document.body.appendChild(link);
-
-    // Trigger download
     link.click();
-    document.body.removeChild(link);
-  }
-
-  // Remove an extracted result
-  removeExtractedResult(index: number) {
-    this.extractedResults.splice(index, 1);
   }
 
   onAadharSelected(event: any): void {
@@ -235,5 +190,9 @@ export class HomeComponent implements OnInit {
 
   processPanFiles(): void {
     this.extractCardDetails('PAN');
+  }
+
+  removeExtractedResult(index: number) {
+    this.extractedResults.splice(index, 1);
   }
 }

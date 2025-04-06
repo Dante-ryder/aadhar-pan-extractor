@@ -35,14 +35,17 @@ const upload = multer({ dest: uploadsDir });
 
 // Function to check if file is PDF
 function isPDF(filePath) {
-  return path.extname(filePath).toLowerCase() === '.pdf';
+  const extname = path.extname(filePath).toLowerCase();
+  return extname === '.pdf' || extname === '.pdf-processed.png';
 }
 
 // Function to convert PDF to image using ImageMagick (if installed)
 async function convertPDFToImage(pdfPath) {
   try {
+    console.log('Converting PDF to image:', pdfPath);
     const outputImagePath = pdfPath + '-page0.png';
     await execPromise(`convert -density 300 "${pdfPath}[0]" -quality 100 "${outputImagePath}"`);
+    console.log('PDF converted successfully to:', outputImagePath);
     return outputImagePath;
   } catch (error) {
     console.error('Error converting PDF to image:', error);
