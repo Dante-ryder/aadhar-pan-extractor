@@ -2,6 +2,10 @@ import { Component } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import Tesseract from 'tesseract.js';
+import * as pdfjs from 'pdfjs-dist';
+
+// Set the worker source using a CDN that matches our package version
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
 @Component({
   selector: 'app-home',
@@ -33,19 +37,28 @@ export class HomeComponent {
 
     for (const file of files) {
       try {
-        // Create form data to send to backend
-        const formData = new FormData();
-        formData.append('image', file);
+        // Check if file is PDF
+        const isPdf = file.type === 'application/pdf';
+        let text = '';
 
-        // Send to backend for processing with Sharp
-        const response: any = await this.http.post(`${this.apiBaseUrl}/process-image`, formData).toPromise();
+        if (isPdf) {
+          // Process PDF with PDF.js
+          text = await this.extractTextFromPdf(file);
+        } else {
+          // Create form data to send to backend
+          const formData = new FormData();
+          formData.append('image', file);
 
-        // Get the URL of the processed image
-        const processedImageUrl = `${this.apiBaseUrl}${response.processedUrl}`;
+          // Send to backend for processing with Sharp
+          const response: any = await this.http.post(`${this.apiBaseUrl}/process-image`, formData).toPromise();
 
-        // Use Tesseract to perform OCR on the processed image
-        const result = await Tesseract.recognize(processedImageUrl, 'eng');
-        const text = result.data.text;
+          // Get the URL of the processed image
+          const processedImageUrl = `${this.apiBaseUrl}${response.processedUrl}`;
+
+          // Use Tesseract to perform OCR on the processed image
+          const result = await Tesseract.recognize(processedImageUrl, 'eng');
+          text = result.data.text;
+        }
 
         // Extract details based on the card type and provided regexes
         const extractedData = this.extractDetails(text, cardType);
@@ -70,6 +83,37 @@ export class HomeComponent {
         });
       }
     }
+  }
+
+  // Simple method to extract text from PDF using PDF.js
+  async extractTextFromPdf(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e: ProgressEvent<FileReader>) => {
+        try {
+          if (!e.target || !e.target.result) {
+            reject(new Error('Failed to read file'));
+            return;
+          }
+
+          const typedArray = new Uint8Array(e.target.result as ArrayBuffer);
+          const pdf = await pdfjs.getDocument(typedArray).promise;
+
+          // Get text from first page only for simplicity
+          const page = await pdf.getPage(1);
+          const textContent = await page.getTextContent();
+          const text = textContent.items.map((item: any) => item.str).join(' ');
+
+          resolve(text);
+        } catch (error) {
+          console.error('PDF.js error:', error);
+          // If PDF.js fails, return an empty string and let the rest of the flow continue
+          resolve('');
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
   }
 
   // Function to extract card details using the provided regex
@@ -171,17 +215,13 @@ export class HomeComponent {
     document.body.appendChild(link);
     link.click();
   }
-
+  
   onAadharSelected(event: any): void {
-    this.aadharFiles.push(...event.target.files);
+    this.aadharFiles = Array.from(event.target.files);
   }
 
   onPanSelected(event: any): void {
-    this.panFiles.push(...event.target.files);
-  }
-
-  removeFile(files: any, index: number): void {
-    files.splice(index, 1);
+    this.panFiles = Array.from(event.target.files);
   }
 
   processAadharFiles(): void {
@@ -194,5 +234,10 @@ export class HomeComponent {
 
   removeExtractedResult(index: number) {
     this.extractedResults.splice(index, 1);
+  }
+
+  // Method to remove a file from a file list
+  removeFile(files: File[], index: number): void {
+    files.splice(index, 1);
   }
 }
