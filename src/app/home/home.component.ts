@@ -353,25 +353,28 @@ export class HomeComponent {
   private extractAadharName(text: string): string {
     // Try each pattern in order of reliability
     const patterns = [
-      // Pattern 1: After "Name:" with proper capitalization
+      // Pattern 1: After "TH / Name" or similar
+      /(?:TH|Name)\s*\/?\s*Name\s*\n+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      
+      // Pattern 2: After "Name:" with proper capitalization
       /Name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
       
-      // Pattern 2: Before "S/o" or "D/o"
-      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:S\/O|D\/O)/i,
+      // Pattern 3: Before "S/o" or "D/o" or Father
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:S\/O|D\/O|Father|WAT FT ATH)/i,
       
-      // Pattern 3: After "Government of India" or similar headers
-      /(?:GOVERNMENT OF INDIA|INDIA|UIDAI).*?\n\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/s,
+      // Pattern 4: After "Government of India" or similar headers
+      /(?:GOVERNMENT OF INDIA|INDIA|UIDAI|GOVT OF).*?\n\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/s,
       
-      // Pattern 4: Name in a line followed by Sha/Hr/DOB pattern
+      // Pattern 5: Name in a line followed by Sha/Hr/DOB pattern
       /([A-Z][a-z]+\s+[A-Z][a-z]+)\n[A-Za-z\s]+DOB/is,
       
-      // Pattern 5: First line of text if it looks like a name
+      // Pattern 6: First line of text if it looks like a name
       /^([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\n|$)/m,
       
-      // Pattern 6: Name before DOB with possible OCR artifacts
+      // Pattern 7: Name before DOB with possible OCR artifacts
       /([A-Z][a-z]+[\s]+[A-Z][a-z]+)(?:\s+(?:c\/DOB|DOB|Date of Birth)|DOB)/i,
       
-      // Pattern 7: Name before ampersand
+      // Pattern 8: Name before ampersand
       /^([A-Za-z]+\s+[A-Za-z]+)(?=\s+&)/m
     ];
 
@@ -400,19 +403,48 @@ export class HomeComponent {
 
   // Extract name from PAN card text
   private extractPanName(text: string): string {
-    // For PAN cards, look for all uppercase names
+    // Common headers to exclude
+    const excludePatterns = [
+      /INCOME TAX DEPARTMENT/i,
+      /GOVERNMENT OF INDIA/i,
+      /UNIQUE IDENTIFICATION/i,
+      /UIDAI/i,
+      /ELECTION COMMISSION/i
+    ];
+
+    // Skip if first few lines contain PAN card headers
+    const firstLines = text.split('\n').slice(0, 3).join('\n');
+    if (excludePatterns.some(p => p.test(firstLines))) {
+      // Remove the header lines before processing
+      text = text.split('\n').slice(3).join('\n');
+    }
+
+    // Try each pattern in order of reliability
     const patterns = [
-      // Pattern 1: Line with all caps name (standard format)
-      /^([A-Z]{2,}(?:\s+[A-Z]{2,}){1,2})\s*$/m,
+      // Pattern 1: Name on a line followed by name on next line
+      /Name\s*\n+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
       
-      // Pattern 2: Any sequence of uppercase words
-      /\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,2})\b/
+      // Pattern 2: After "Name:" with proper capitalization
+      /Name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
+      
+      // Pattern 3: First properly capitalized name after headers
+      /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/m,
+      
+      // Pattern 4: Name before Father's name
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:S\/O|D\/O|Father)/i
     ];
 
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match && match[1]) {
-        return match[1].trim();
+        const name = match[1].trim();
+        // Skip if name matches any exclude pattern
+        if (excludePatterns.some(p => p.test(name))) {
+          continue;
+        }
+        // Validate name format (2-3 words, properly capitalized, no all caps)
+        this.nameExtracted = name;
+        return name;
       }
     }
 
