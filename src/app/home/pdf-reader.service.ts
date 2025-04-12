@@ -4,13 +4,10 @@ import * as pdfjsLib from 'pdfjs-dist';
 @Injectable({
   providedIn: 'root'
 })
-
 export class PdfReaderService {
   constructor() {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.mjs',
-      import.meta.url
-    ).toString();
+    // Use absolute path for production compatibility
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/assets/pdfjs-dist/build/pdf.worker.mjs';
   }
 
   public async readPdf(file: File): Promise<string> {
