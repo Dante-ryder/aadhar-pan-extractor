@@ -47,6 +47,7 @@
             <table class="table table-striped">
               <thead>
                 <tr>
+                  <th style="width: 150px;">Document</th>
                   <th>Name</th>
                   <th>Number</th>
                   <th>DOB</th>
@@ -59,12 +60,40 @@
               </thead>
               <tbody>
                 @for (result of extractedResults; track result.fileName; let i = $index) {
-                  <tr>
-                    <td>{{ result.name }}</td>
-                    <td>{{ result.number }}</td>
-                    <td>{{ result.dob || 'Not available' }}</td>
-                    <td>{{ result.address || 'Not available' }}</td>
-                    <td>{{ result.mobile || 'Not available' }}</td>
+                  <tr style="height: 120px; vertical-align: middle;">
+                    <td class="text-center" style="width: 150px;">
+                      @if (result.sourceUrl) {
+                        <div class="image-zoom-container" style="position: relative; height: 100px; width: 120px; margin: 0 auto;">
+                          <a [href]="result.sourceUrl" target="_blank">
+                            <img [src]="result.sourceUrl" class="img-thumbnail document-preview" 
+                                 style="height: 100px; width: 120px; object-fit: contain; transition: transform 0.3s ease;"
+                                 alt="Document preview"
+                                 (mouseover)="showZoomedImage($event)" 
+                                 (mouseout)="hideZoomedImage()">
+                          </a>
+                          <div id="zoomedPreview" class="zoomed-preview" style="display: none; position: absolute; z-index: 100; border: 2px solid #ccc; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.3);">
+                            <!-- Zoomed image will be displayed here -->
+                          </div>
+                        </div>
+                      } @else {
+                        <span class="text-muted">No preview</span>
+                      }
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.name">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.number">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.dob">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.address">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.mobile">
+                    </td>
                     <td>{{ result.fileName }}</td>
                     <td>{{ result.cardType }}</td>
                     <td>

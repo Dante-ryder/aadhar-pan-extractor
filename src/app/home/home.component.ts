@@ -5,11 +5,13 @@ import { PdfReaderService } from './pdf-reader.service';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { FileHandleService } from '../services/file-handle.service';
+import {FormsModule} from "@angular/forms";
 
 @Component({
   selector: 'app-home',
   imports: [
-    NgOptimizedImage
+    NgOptimizedImage,
+    FormsModule
   ],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css']
@@ -26,7 +28,16 @@ export class HomeComponent {
   nameExtracted = '';
   isProcessing = false;
   selectedCsvFile: File | null = null;
-  extractedResults: Array<{fileName: string, cardType: string, number: string, name: string, dob?: string, address?: string, mobile?: string}> = [];
+  extractedResults: Array<{
+    fileName: string, 
+    cardType: string, 
+    number: string, 
+    name: string, 
+    dob?: string, 
+    address?: string, 
+    mobile?: string,
+    sourceUrl?: string
+  }> = [];
 
   // File handlers for direct file system access
   private csvFileName: string = 'extractions.csv';
@@ -50,17 +61,22 @@ export class HomeComponent {
         // Process the extracted text to find specific details
         const details = this.extractDetails(text, cardType);
 
-        this.extractedResults.push({
+        const resultObj = {
           fileName: file.name,
           cardType: cardType,
           number: details.Number,
           name: details.Name || this.nameExtracted || 'Not found',
           dob: details.DOB,
           address: details.Address,
-          mobile: details.Mobile
-        });
+          mobile: details.Mobile,
+          sourceUrl: this.getObjectUrl(file)
+        };
 
+        this.extractedResults.push(resultObj);
         this.textExtracted = text;
+
+        // Save to history
+        this.saveToHistory(resultObj);
       }
     } catch (error: any) {
       console.error(`Error processing ${cardType} files:`, error && error.message ? error.message : String(error));
@@ -743,11 +759,6 @@ export class HomeComponent {
     this.extractCardDetails('AADHAR');
   }
 
-  processPanFiles(): void {
-    this.extractCardDetails('PAN');
-  }
-
-  // Process Aadhar cards with multi-pass thresholding
   processAadharWithMultipassThresholding(): void {
     this.isProcessing = true;
     
@@ -771,9 +782,13 @@ export class HomeComponent {
               name: details.Name || this.nameExtracted || 'Not found',
               dob: details.DOB,
               address: details.Address,
-              mobile: details.Mobile
+              mobile: details.Mobile,
+              sourceUrl: this.getObjectUrl(this.aadharFiles[index])
             });
             this.textExtracted = text;
+
+            // Save to history
+            this.saveToHistory(this.extractedResults[this.extractedResults.length - 1]);
           }
         });
         this.isProcessing = false;
@@ -781,6 +796,58 @@ export class HomeComponent {
       .catch(error => {
         clearTimeout(timeoutId); // Clear the timeout on error
         console.error('Error processing files with multi-pass:', error);
+        alert(`Error processing files: ${error.message || String(error)}`);
+        this.isProcessing = false;
+      });
+  }
+
+  processPanFiles(): void {
+    this.isProcessing = true;
+
+    // Set a timeout to prevent hanging
+    const timeoutId = setTimeout(() => {
+      console.error('Processing timed out after 60 seconds');
+      alert('Processing timed out. Try with a smaller image or use the regular upload button.');
+      this.isProcessing = false;
+    }, 60000); // 60 second timeout
+
+    const processPromises = this.panFiles.map(file => {
+      // Use the appropriate method based on file type
+      if (file.type === 'application/pdf') {
+        return this.processPdfWithTesseract(file);
+      } else {
+        return this.processImageWithTesseract(file);
+      }
+    });
+
+    Promise.all(processPromises)
+      .then(textResults => {
+        clearTimeout(timeoutId);
+        textResults.forEach((text, index) => {
+          if (text) {
+            const panFile = this.panFiles[index];
+            const details = this.extractDetails(text, 'PAN');
+            this.extractedResults.push({
+              fileName: panFile.name,
+              cardType: 'PAN',
+              number: details.Number,
+              name: details.Name || this.nameExtracted || 'Not found',
+              dob: details.DOB || '',
+              address: details.Address || '',
+              mobile: details.Mobile || '',
+              sourceUrl: this.getObjectUrl(panFile)
+            });
+            this.textExtracted = text;
+
+            // Save to history
+            this.saveToHistory(this.extractedResults[this.extractedResults.length - 1]);
+          }
+        });
+        this.isProcessing = false;
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        console.error('Error processing files:', error);
         alert(`Error processing files: ${error.message || String(error)}`);
         this.isProcessing = false;
       });
@@ -974,9 +1041,139 @@ export class HomeComponent {
     }
   }
 
+  // Create object URL for file preview
+  getObjectUrl(file: File): string {
+    if (file.type === 'application/pdf') {
+      // For PDFs, we need to create a thumbnail
+      return this.generatePdfThumbnail(file);
+    }
+    // For images, we can use the direct object URL
+    return URL.createObjectURL(file);
+  }
+
+  // Generate a thumbnail for PDF files
+  generatePdfThumbnail(pdfFile: File): string {
+    // Create a placeholder thumbnail
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 250;
+    const ctx = canvas.getContext('2d');
+    
+    if (ctx) {
+      // Draw a PDF-like icon/placeholder
+      ctx.fillStyle = '#f4f4f4';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(0, 0, canvas.width, 40);
+      
+      ctx.font = 'bold 16px Arial';
+      ctx.fillStyle = 'white';
+      ctx.fillText('PDF', 10, 25);
+      
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#333';
+      ctx.fillText(pdfFile.name.length > 20 ? pdfFile.name.substring(0, 20) + '...' : pdfFile.name, 10, 60);
+      
+      // Create PDF logo/icon
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(canvas.width/2 - 30, canvas.height/2 - 30, 60, 80);
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 24px Arial';
+      ctx.fillText('PDF', canvas.width/2 - 20, canvas.height/2 + 10);
+    }
+    
+    // Convert canvas to data URL
+    return canvas.toDataURL('image/png');
+  }
+
+  // Release object URLs when component is destroyed
+  ngOnDestroy() {
+    // Clean up object URLs to prevent memory leaks
+    this.extractedResults.forEach(result => {
+      if (result.sourceUrl) {
+        URL.revokeObjectURL(result.sourceUrl);
+      }
+    });
+  }
+
   // Navigate to storage selection page
   changeStorageLocation() {
     this.router.navigate(['/storage-select']);
+  }
+
+  // Image zooming functionality
+  private zoomedElement: HTMLElement | null = null;
+
+  showZoomedImage(event: MouseEvent) {
+    const target = event.target as HTMLImageElement;
+    if (!target) return;
+    
+    // Create a zoomed preview container if it doesn't exist
+    if (!this.zoomedElement) {
+      this.zoomedElement = document.createElement('div');
+      this.zoomedElement.className = 'zoomed-preview';
+      this.zoomedElement.style.position = 'fixed';
+      this.zoomedElement.style.zIndex = '1000';
+      this.zoomedElement.style.border = '2px solid #ccc';
+      this.zoomedElement.style.backgroundColor = 'white';
+      this.zoomedElement.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+      this.zoomedElement.style.overflow = 'hidden';
+      this.zoomedElement.style.padding = '0'; // Remove padding
+      document.body.appendChild(this.zoomedElement);
+    }
+
+    // Create zoomed image
+    const zoomedImg = document.createElement('img');
+    zoomedImg.src = target.src;
+    zoomedImg.style.width = '900px'; // 7.5x the original width 
+    zoomedImg.style.height = '750px'; // 7.5x the original height
+    zoomedImg.style.objectFit = 'cover'; // Changed from 'contain' to 'cover' to fill the space
+    zoomedImg.style.display = 'block'; // Ensure image is block-level
+    zoomedImg.style.margin = '0'; // Remove margins
+    
+    // Clear previous content and add the new zoomed image
+    this.zoomedElement.innerHTML = '';
+    this.zoomedElement.appendChild(zoomedImg);
+    
+    // Position the zoomed element near the cursor
+    this.zoomedElement.style.display = 'block';
+    this.updateZoomPosition(event);
+    
+    // Add mousemove listener to update position when cursor moves
+    document.addEventListener('mousemove', this.updateZoomPosition.bind(this));
+  }
+
+  updateZoomPosition(event: MouseEvent) {
+    if (!this.zoomedElement) return;
+    
+    const padding = 20; // Padding from cursor
+    let left = event.clientX + padding;
+    let top = event.clientY + padding;
+    
+    // Make sure the zoomed image stays within viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const zoomWidth = 900; // Must match the width set in showZoomedImage
+    const zoomHeight = 750; // Must match the height set in showZoomedImage
+    
+    if (left + zoomWidth > viewportWidth) {
+      left = event.clientX - zoomWidth - padding;
+    }
+    
+    if (top + zoomHeight > viewportHeight) {
+      top = event.clientY - zoomHeight - padding;
+    }
+    
+    this.zoomedElement.style.left = `${left}px`;
+    this.zoomedElement.style.top = `${top}px`;
+  }
+
+  hideZoomedImage() {
+    if (this.zoomedElement) {
+      this.zoomedElement.style.display = 'none';
+      document.removeEventListener('mousemove', this.updateZoomPosition.bind(this));
+    }
   }
 
   // File handling methods
@@ -992,5 +1189,33 @@ export class HomeComponent {
     if (input.files) {
       this.panFiles = Array.from(input.files);
     }
+  }
+
+  // Save extraction results to localStorage for history
+  saveToHistory(result: any) {
+    // Get existing history from localStorage
+    const historyStr = localStorage.getItem('extractionHistory');
+    let history = [];
+    
+    if (historyStr) {
+      try {
+        history = JSON.parse(historyStr);
+      } catch (e) {
+        console.error('Error parsing history:', e);
+      }
+    }
+    
+    // Add timestamp to the result
+    const resultWithTimestamp = {
+      ...result,
+      documentType: result.cardType.toLowerCase(),
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add to history
+    history.push(resultWithTimestamp);
+    
+    // Save back to localStorage
+    localStorage.setItem('extractionHistory', JSON.stringify(history));
   }
 }

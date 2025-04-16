@@ -1,9 +1,14 @@
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Extraction History</h2>
-    <button class="btn btn-primary" (click)="downloadCSV()">
-      Download All Data (CSV)
-    </button>
+    <div>
+      <button class="btn btn-primary me-2" (click)="downloadCSV()">
+        Download All Data (CSV)
+      </button>
+      <button class="btn btn-danger" (click)="clearHistory()">
+        Clear History
+      </button>
+    </div>
   </div>
 
   <div *ngIf="loading" class="text-center">
@@ -16,47 +21,42 @@
     {{ error }}
   </div>
 
-  <div *ngIf="!loading && !error" class="table-responsive">
+  <div *ngIf="!loading && !error && extractions.length === 0" class="alert alert-info">
+    No extraction history found.
+  </div>
+
+  <div *ngIf="!loading && !error && extractions.length > 0" class="table-responsive">
     <table class="table table-striped">
       <thead>
         <tr>
           <th>Date</th>
           <th>Document Type</th>
+          <th>File Name</th>
           <th>Name</th>
-          <th>Details</th>
+          <th>Number</th>
+          <th>DOB</th>
+          <th>Address</th>
+          <th>Mobile</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let extraction of extractions">
+        <tr *ngFor="let extraction of extractions; let i = index">
           <td>{{ formatDate(extraction.timestamp) }}</td>
           <td>{{ extraction.documentType | titlecase }}</td>
+          <td>{{ extraction.fileName }}</td>
           <td>{{ extraction.name }}</td>
+          <td>{{ extraction.number }}</td>
+          <td>{{ extraction.dob || 'N/A' }}</td>
+          <td>{{ extraction.address || 'N/A' }}</td>
+          <td>{{ extraction.mobile || 'N/A' }}</td>
           <td>
-            <button class="btn btn-sm btn-info" data-bs-toggle="modal" [attr.data-bs-target]="'#details-' + extraction._id">
-              View Details
+            <button class="btn btn-sm btn-danger" (click)="deleteExtraction(i)">
+              Delete
             </button>
-
-            <!-- Modal -->
-            <div class="modal fade" [id]="'details-' + extraction._id" tabindex="-1">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title">Extraction Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body">
-                    <pre>{{ extraction.extractedData | json }}</pre>
-                  </div>
-                </div>
-              </div>
-            </div>
           </td>
         </tr>
       </tbody>
     </table>
-  </div>
-
-  <div *ngIf="!loading && !error && extractions.length === 0" class="text-center mt-4">
-    <p>No extractions found.</p>
   </div>
 </div>
