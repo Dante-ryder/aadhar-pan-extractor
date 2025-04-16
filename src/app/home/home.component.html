@@ -18,7 +18,10 @@
               </li>
             }
           </ul>
-          <button type="submit" class="btn btn-primary" (click)="processAadharFiles()">Upload</button>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary" (click)="processAadharFiles()">Upload</button>
+            <button type="submit" class="btn btn-info ms-2" (click)="processAadharWithMultipassThresholding()">Multi-Pass Thresholding</button>
+          </div>
         </div>
         <div class="col">
           <img ngSrc="assets/pan.png" alt="pan" height="300" width="500" priority>
@@ -47,6 +50,8 @@
                   <th>Name</th>
                   <th>Number</th>
                   <th>DOB</th>
+                  <th>Address</th>
+                  <th>Mobile</th>
                   <th>File Name</th>
                   <th>Card Type</th>
                   <th>Action</th>
@@ -58,6 +63,8 @@
                     <td>{{ result.name }}</td>
                     <td>{{ result.number }}</td>
                     <td>{{ result.dob || 'Not available' }}</td>
+                    <td>{{ result.address || 'Not available' }}</td>
+                    <td>{{ result.mobile || 'Not available' }}</td>
                     <td>{{ result.fileName }}</td>
                     <td>{{ result.cardType }}</td>
                     <td>
@@ -68,9 +75,10 @@
               </tbody>
             </table>
             <div class="mt-3">
-              <button class="btn btn-success me-2" (click)="downloadCSV('ALL')">Download All as CSV</button>
+              <button class="btn btn-success me-2" (click)="saveToFile()">Save to Selected File</button>
               <button class="btn btn-info me-2" (click)="downloadCSV('AADHAR')">Download Aadhar Data</button>
-              <button class="btn btn-warning" (click)="downloadCSV('PAN')">Download PAN Data</button>
+              <button class="btn btn-warning me-2" (click)="downloadCSV('PAN')">Download PAN Data</button>
+              <button class="btn btn-secondary" (click)="changeStorageLocation()">Change Storage Location</button>
             </div>
           </div>
         </div>

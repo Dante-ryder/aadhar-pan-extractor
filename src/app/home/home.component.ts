@@ -2,6 +2,9 @@ import { Component } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import { PdfReaderService } from './pdf-reader.service';
+import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
+import { FileHandleService } from '../services/file-handle.service';
 
 @Component({
   selector: 'app-home',
@@ -9,7 +12,7 @@ import { PdfReaderService } from './pdf-reader.service';
     NgOptimizedImage
   ],
   templateUrl: './home.component.html',
-  styleUrl: './home.component.css'
+  styleUrls: ['./home.component.css']
 })
 export class HomeComponent {
   aadharFiles: File[] = [];
@@ -22,9 +25,18 @@ export class HomeComponent {
   textExtracted = '';
   nameExtracted = '';
   isProcessing = false;
-  extractedResults: Array<{fileName: string, cardType: string, number: string, name: string, dob?: string}> = [];
+  selectedCsvFile: File | null = null;
+  extractedResults: Array<{fileName: string, cardType: string, number: string, name: string, dob?: string, address?: string, mobile?: string}> = [];
 
-  constructor(private pdfReaderService: PdfReaderService) {}
+  // File handlers for direct file system access
+  private csvFileName: string = 'extractions.csv';
+
+  constructor(
+    private pdfReaderService: PdfReaderService,
+    private http: HttpClient,
+    private router: Router,
+    private fileHandleService: FileHandleService
+  ) {}
 
   async extractCardDetails(cardType: string) {
     this.isProcessing = true;
@@ -34,18 +46,20 @@ export class HomeComponent {
       for (const file of files) {
         // All files (PDF or images) will be processed with Tesseract
         const text = await this.processImageWithTesseract(file);
-        
+
         // Process the extracted text to find specific details
         const details = this.extractDetails(text, cardType);
-        
+
         this.extractedResults.push({
           fileName: file.name,
           cardType: cardType,
           number: details.Number,
           name: details.Name || this.nameExtracted || 'Not found',
-          dob: details.DOB
+          dob: details.DOB,
+          address: details.Address,
+          mobile: details.Mobile
         });
-        
+
         this.textExtracted = text;
       }
     } catch (error: any) {
@@ -59,75 +73,92 @@ export class HomeComponent {
   // Process image using Tesseract OCR directly
   async processImageWithTesseract(imageFile: File): Promise<string> {
     try {
+      console.log(`Processing image: ${imageFile.name} (Size: ${Math.round(imageFile.size/1024)} KB)`);
+
       // For PDFs, first convert to an image using canvas rendering
       if (imageFile.type === 'application/pdf') {
         const text = await this.pdfReaderService.readPdf(imageFile);
         this.extractDetails(text, 'AADHAR')
         return text;
       }
-      
+
       // For images, continue with the original image processing flow
       const imageUrl = URL.createObjectURL(imageFile);
-      
-      // Initialize Tesseract worker
-      const worker = await createWorker('eng', OEM.LSTM_ONLY);
-      
-      // Set parameters for better recognition
+
+      const worker = await createWorker();
+
+      // Configure Tesseract with improved settings for handling multi-column layouts
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM.AUTO,  // Changed from SINGLE_BLOCK to AUTO
+        // OCR Engine mode - using LSTM neural network only
+        tessedit_ocr_engine_mode: OEM.LSTM_ONLY,
+
+        // Page segmentation mode - AUTO with orientation and script detection for better column handling
+        tessedit_pageseg_mode: PSM.AUTO_OSD,
+
+        // Improve column detection and preserve line structure
         preserve_interword_spaces: '1',
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 /',
+        textord_tabfind_find_tables: '1',       // Enable table/column finding
+        textord_tablefind_recognize_tables: '1', // Improve structure recognition
+
+        // Character whitelist to improve accuracy
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 /,:.-',
+
+        // Output configuration
         tessedit_create_txt: '1',
         tessedit_create_hocr: '1',
+
+        // Line finding improvement
+        textord_min_linesize: '2.0',           // Don't break lines unnecessarily
+        textord_parallel_baselines: '1',       // Help with multi-column
         tessedit_line_finding_algorithm: '1'
       });
-      
+
       // Load the image onto a canvas for preprocessing
       const img = new Image();
       img.src = imageUrl;
-      
+
       await new Promise<void>((resolve) => {
         img.onload = () => resolve();
         img.onerror = () => resolve(); // Resolve anyway to prevent hanging
       });
-      
+
       // Create canvas and context
       const canvas = document.createElement('canvas');
       canvas.width = img.width || 800; // Fallback width if image loading failed
       canvas.height = img.height || 1000; // Fallback height if image loading failed
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) {
         throw new Error('Could not get canvas context');
       }
-      
+
       // Draw the image and apply preprocessing
       ctx.drawImage(img, 0, 0);
-      
+
       // Enhanced image preprocessing
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
-      
+
       for (let i = 0; i < data.length; i += 4) {
         // Convert to grayscale first
         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        
+
         // Apply contrast and threshold
         const contrast = 1.5;
         const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
         const value = factor * (avg - 128) + 128;
-        
+
         // Thresholding to make text more distinct
         const threshold = 128;
         const final = value > threshold ? 255 : 0;
-        
+
         data[i] = final;     // R
         data[i + 1] = final; // G
         data[i + 2] = final; // B
       }
-      
+
       ctx.putImageData(imageData, 0, 0);
-      
+
       // Create an image blob from canvas for OCR processing
       const processedImageBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => {
@@ -140,17 +171,17 @@ export class HomeComponent {
       });
 
       const { data: { text } } = await worker.recognize(processedImageBlob);
-      
+
       // Log the extracted text to console
       console.log(`Extracted OCR Text from ${imageFile.name}:`, text);
-      
+
       // Extract name from the text
       this.extractNameFromText(text);
-      
+
       // Cleanup
       await worker.terminate();
       URL.revokeObjectURL(imageUrl);
-      
+
       this.textExtracted = text;
       return text;
     } catch (error) {
@@ -158,55 +189,55 @@ export class HomeComponent {
       throw error;
     }
   }
-  
+
   // Process PDF by converting to image first and then using Tesseract
   async processPdfWithTesseract(pdfFile: File): Promise<string> {
     try {
       console.log(`Processing PDF: ${pdfFile.name} (Size: ${Math.round(pdfFile.size/1024)} KB)`);
-      
+
       // Create a canvas to render a basic PDF representation (simplified approach)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         throw new Error('Could not get canvas context');
       }
-      
+
       // Set canvas dimensions
       canvas.width = 1000;
       canvas.height = 1400;
-      
+
       // Fill with white background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
+
       // Draw a colored border for better recognition
       ctx.strokeStyle = '#CCCCCC';
       ctx.lineWidth = 1;
       ctx.strokeRect(0, 0, canvas.width, canvas.height);
-      
+
       // We'll attempt to create a high contrast image of text for better OCR
       // 1. First get the PDF as an image to draw on the canvas
       const url = URL.createObjectURL(pdfFile);
-      
+
       // Try to load the PDF as an image (this will work with certain PDFs)
       const img = new Image();
-      
+
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
           // If we can load it as an image, draw it to the canvas
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
           resolve();
         };
-        
+
         img.onerror = () => {
           // If we can't load it as an image, we'll use placeholder text
           console.log('Could not load PDF as image, using alternate approach');
-          
+
           // Placeholder text with file info
           ctx.fillStyle = '#000000';
           ctx.font = 'bold 24px Arial';
           ctx.fillText(`Document: ${pdfFile.name}`, 50, 50);
-          
+
           // Add some lines that might help with OCR text alignment
           ctx.beginPath();
           for (let i = 0; i < 10; i++) {
@@ -215,18 +246,18 @@ export class HomeComponent {
             ctx.lineTo(canvas.width - 50, y);
           }
           ctx.stroke();
-          
+
           resolve();
         };
-        
+
         // Try to load PDF as image
         img.src = url;
       });
-      
+
       // Apply high-contrast filter to improve OCR
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
-      
+
       // Convert to grayscale and increase contrast
       for (let i = 0; i < data.length; i += 4) {
         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
@@ -236,12 +267,12 @@ export class HomeComponent {
         data[i + 1] = val; // G
         data[i + 2] = val; // B
       }
-      
+
       // Put processed image back to canvas
       ctx.putImageData(imageData, 0, 0);
-      
+
       console.log('Canvas prepared with high-contrast image for OCR');
-      
+
       // Convert canvas to blob for Tesseract
       const imageBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => {
@@ -252,29 +283,42 @@ export class HomeComponent {
           }
         }, 'image/png');
       });
-      
+
       // Use Tesseract to extract text from the image with optimized settings
       const worker = await createWorker('eng', OEM.LSTM_ONLY);
-      
+
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.AUTO, // Use auto segmentation
         tessedit_ocr_engine_mode: OEM.LSTM_ONLY, // Neural net mode
         preserve_interword_spaces: '1',
         tessjs_create_hocr: '0',
-        tessjs_create_tsv: '0'
+        tessjs_create_tsv: '0',
+        textord_tablefind_recognize_tables: '1',  // Enable table detection
+        textord_min_linesize: '1.25',            // Better handle small text
+        textord_detect_columnnoise: '0',         // Don't treat columns as noise
+        textord_tabfind_find_tables: '1',        // Find and process tables properly
+        textord_tabfind_vertical_horizontal_mix: '1', // Handle mixed orientations
+        tessedit_write_block_separators: '1',    // Separate text blocks
+        textord_debug_block: '0',                // Don't output debug blocks
+        textord_force_make_prop_words: '0',     // Don't force words to be proportional
+        textord_tablefind_show_mark: '0',       // Don't show marks
+        textord_bidir_words: '0',               // Disable bidirectional words processing
+        textord_exit_after_blocks: '0',         // Process full document
+        textord_single_column: '0',             // Don't assume single column
+        textord_parallel_baselines: '1',        // Handle parallel text lines
       });
-      
+
       console.log('Starting OCR processing with Tesseract...');
       const { data: { text } } = await worker.recognize(imageBlob);
       console.log(`OCR completed for ${pdfFile.name}`);
-      
+
       // Clean up worker
       await worker.terminate();
       URL.revokeObjectURL(url);
-      
+
       // Log the extracted text
       console.log(`Extracted text from PDF ${pdfFile.name}:\n${text}`);
-      
+
       // Try to extract important information
       this.extractNameFromText(text);
       if (this.nameExtracted) {
@@ -282,7 +326,7 @@ export class HomeComponent {
       } else {
         console.log(`No name found in PDF ${pdfFile.name}`);
       }
-      
+
       // Try to extract Aadhar number
       const aadharNumber = this.extractAadharNumber(text);
       if (aadharNumber) {
@@ -290,14 +334,14 @@ export class HomeComponent {
       } else {
         console.log(`No Aadhar number found in PDF ${pdfFile.name}`);
       }
-      
+
       return text;
     } catch (error: any) {
       console.error('Error processing PDF:', error);
       return 'PDF processing error: ' + (error.message || 'Unknown error');
     }
   }
-  
+
   // Extract text from PDF using PDF.js
   private async extractTextFromPdfWithPdfjs(pdfFile: File): Promise<string> {
     // Removed PDF.js implementation
@@ -311,7 +355,7 @@ export class HomeComponent {
       return canvas;
     } catch (error) {
       console.error('Error rendering PDF page to canvas:', error);
-      
+
       // Fill with error message if rendering fails
       const context = canvas.getContext('2d');
       if (context) {
@@ -321,11 +365,11 @@ export class HomeComponent {
         context.font = '20px Arial';
         context.fillText('Error rendering PDF', 20, 50);
       }
-      
+
       return canvas;
     }
   }
-  
+
   // Helper to read file as array buffer
   private readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
     return new Promise((resolve, reject) => {
@@ -351,39 +395,87 @@ export class HomeComponent {
 
   // Extract name from Aadhar card text
   private extractAadharName(text: string): string {
+    // Common words that should not be treated as names
+    const commonWords = ['to', 'the', 'this', 'of', 'in', 'is', 'on', 'at', 'by', 'for', 'and', 'or', 'address', 'government', 'india', 'department', 'uidai'];
+
+    // First, check if the text starts with "To" followed by a name - a common format
+    const toNameMatch = text.match(/^\s*To\s*\n+\s*([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+){0,2})\s*$/im);
+    if (toNameMatch && toNameMatch[1] && toNameMatch[1].length > 2) {
+      const name = toNameMatch[1].trim();
+      // Make sure it's not another common word
+      if (!commonWords.includes(name.toLowerCase())) {
+        this.nameExtracted = name;
+        return name;
+      }
+    }
+
     // Try each pattern in order of reliability
     const patterns = [
       // Pattern 1: After "TH / Name" or similar
       /(?:TH|Name)\s*\/?\s*Name\s*\n+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-      
+
       // Pattern 2: After "Name:" with proper capitalization
       /Name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
-      
+
       // Pattern 3: Before "S/o" or "D/o" or Father
       /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:S\/O|D\/O|Father|WAT FT ATH)/i,
-      
+
       // Pattern 4: After "Government of India" or similar headers
       /(?:GOVERNMENT OF INDIA|INDIA|UIDAI|GOVT OF).*?\n\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/s,
-      
+
       // Pattern 5: Name in a line followed by Sha/Hr/DOB pattern
       /([A-Z][a-z]+\s+[A-Z][a-z]+)\n[A-Za-z\s]+DOB/is,
-      
-      // Pattern 6: First line of text if it looks like a name
-      /^([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\n|$)/m,
-      
+
+      // Pattern 6: First line of text if it looks like a name - exclude common words
+      /^(?!\s*(?:to|the|this|from|address)\b)([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\n|$)/im,
+
       // Pattern 7: Name before DOB with possible OCR artifacts
       /([A-Z][a-z]+[\s]+[A-Z][a-z]+)(?:\s+(?:c\/DOB|DOB|Date of Birth)|DOB)/i,
-      
+
       // Pattern 8: Name before ampersand
-      /^([A-Za-z]+\s+[A-Za-z]+)(?=\s+&)/m
+      /^(?!\s*(?:to|the|this|from|address)\b)([A-Za-z]+\s+[A-Za-z]+)(?=\s+&)/im,
+
+      // Pattern 9: Name before C/O (updated to handle various formats)
+      /([A-Za-z][a-z]*(?:\s+[A-Za-z][a-z]*){0,2})\s+C\/O/i,
+
+      // Pattern 10: Single name on its own line - must not be a common word
+      /^(?!\s*(?:to|the|this|from|address)\b)\s*([A-Za-z][a-z]{3,})\s*$/im,
+
+      // Pattern 11: Name in a single line that is multiword and not a common header
+      /^(?!\s*(?:to|the|this|from|address)\b)\s*([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+){1,2})\s*$/im
     ];
 
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match && match[1]) {
         const name = match[1].trim();
-        // Validate name format (2-3 words, properly capitalized)
-        if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}$/.test(name)) {
+
+        // Debug log
+        console.log(`Potential name match: "${name}"`);
+
+        // Enhanced validation
+        // 1. Explicit check for 'To'
+        if (name.toLowerCase() === 'to') {
+          console.log('Skipping "To" as a name');
+          continue;
+        }
+
+        // 2. Skip single common words
+        if (name.indexOf(' ') === -1 && commonWords.includes(name.toLowerCase())) {
+          console.log(`Skipping common word: "${name}"`);
+          continue;
+        }
+
+        // 3. Skip very short words that are likely not names
+        if (name.length <= 2) {
+          console.log(`Skipping very short word: "${name}"`);
+          continue;
+        }
+
+        // 4. Basic name validation
+        if (/^[A-Za-z\s]+$/.test(name) &&
+            !commonWords.some(word => name.toLowerCase() === word)) {
+          console.log(`Valid name found: "${name}"`);
           this.nameExtracted = name;
           return name;
         }
@@ -391,7 +483,7 @@ export class HomeComponent {
     }
 
     // If no match found with strict patterns, try a more lenient pattern
-    const lenientMatch = text.match(/^([A-Za-z]+(?:\s+[A-Za-z]+){1,2})/m);
+    const lenientMatch = text.match(/^([A-Za-z]+(?:\s+[A-Za-z]+){1,3})/m);
     if (lenientMatch && lenientMatch[1]) {
       const name = lenientMatch[1].trim();
       this.nameExtracted = name;
@@ -423,13 +515,13 @@ export class HomeComponent {
     const patterns = [
       // Pattern 1: Name on a line followed by name on next line
       /Name\s*\n+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-      
+
       // Pattern 2: After "Name:" with proper capitalization
       /Name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
-      
+
       // Pattern 3: First properly capitalized name after headers
       /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/m,
-      
+
       // Pattern 4: Name before Father's name
       /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:S\/O|D\/O|Father)/i
     ];
@@ -456,18 +548,18 @@ export class HomeComponent {
     // Last resort: look for any capitalized words group that's likely a name
     const genericNameRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/;
     const genericNameMatch = text.match(genericNameRegex);
-    
+
     if (genericNameMatch && genericNameMatch[1]) {
       return genericNameMatch[1].trim();
     }
-    
+
     return 'Name Not Found';
   }
 
   // Extract Aadhar card number
   extractAadharNumber(text: string): string {
     // Pattern for Aadhar numbers: either 12 digits with spaces/no spaces, or 16 digit VID
-    
+
     // First try the VID format
     const vidMatch = text.match(/VID\s*:\s*(\d[\d\s]+\d)/i);
     if (vidMatch && vidMatch[1]) {
@@ -476,7 +568,7 @@ export class HomeComponent {
         return cleaned;
       }
     }
-    
+
     // Next try standard 12-digit Aadhar format
     const aadharMatch = text.match(/(\d[\d\s]+\d)/g);
     if (aadharMatch) {
@@ -488,7 +580,7 @@ export class HomeComponent {
         }
       }
     }
-    
+
     return 'Number Not Found';
   }
 
@@ -508,7 +600,7 @@ export class HomeComponent {
     try {
       const regex = new RegExp(this.cardTypes[cardType]);
       const matches = ocrText.match(regex);
-      const result: {Number: string, Name?: string, DOB?: string} = {
+      const result: {Number: string, Name?: string, DOB?: string, Address?: string, Mobile?: string} = {
         Number: matches ? matches[0] : `${cardType} Number not found`,
       };
 
@@ -522,11 +614,36 @@ export class HomeComponent {
           result.Name = this.nameExtracted || 'Not found';
         }
       } else if (cardType === 'AADHAR') {
-
         result.Name = this.extractNameFromText(ocrText);
-        console.log(result)
+
+        // Extract address and mobile for Aadhar cards only if they exist
+        const address = this.extractAadharAddress(ocrText);
+        if (address && address !== 'Address Not Found') {
+          result.Address = address;
+        }
+
+        const mobile = this.extractMobileNumber(ocrText);
+        if (mobile && mobile !== 'Mobile Not Found') {
+          result.Mobile = mobile;
+        }
+
+        // Comprehensive logging of extracted data
+        console.log('Extracted Aadhar Data:');
+        console.log('-----------------------');
+        console.log(`Name: ${result.Name}`);
+        console.log(`Aadhar Number: ${result.Number}`);
+        if (result.DOB) console.log(`Date of Birth: ${result.DOB}`);
+        if (result.Address) console.log(`Address: ${result.Address}`);
+        if (result.Mobile) console.log(`Mobile: ${result.Mobile}`);
+        console.log('-----------------------');
+
+        // Log the raw text
+        console.log('Raw OCR Text:');
+        console.log('-----------------------');
+        console.log(ocrText);
+        console.log('-----------------------');
       }
-      
+
       // Extract DOB
       const dobMatch = ocrText.match(/(?:DOB|Date of Birth|Year of Birth)[\s:]*\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
       if (dobMatch && dobMatch[1]) {
@@ -538,7 +655,7 @@ export class HomeComponent {
           result.DOB = dateMatch[1].trim();
         }
       }
-      
+
       return result;
     } catch (error) {
       console.error('Error extracting details:', error);
@@ -550,19 +667,76 @@ export class HomeComponent {
     }
   }
 
-  // File handling methods
-  onAadharFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      this.aadharFiles = Array.from(input.files);
+  // Extract address from Aadhar card text
+  extractAadharAddress(text: string): string {
+    // Try to find address block starting with 'Address:' and continuing until a 6-digit pincode
+    const addressRegex = /Address:(?:[\s\n]+)([\s\S]*?\b\d{3}\s*\d{3}\b)/i;
+    const addressMatch = text.match(addressRegex);
+
+    if (addressMatch && addressMatch[1]) {
+      // Clean up the address: remove excessive whitespace and normalize line breaks
+      let address = addressMatch[1].replace(/\s+/g, ' ').trim();
+
+      // Format address with line breaks
+      // Split by commas and common address separators
+      const addressParts = address.split(/[,\n]+/);
+      address = addressParts.map(part => part.trim()).join('\n');
+
+      return address;
     }
+
+    // If the specific format wasn't found, try more general patterns
+    const patterns = [
+      // Pattern 1: After "Address" and before a 6-digit number
+      /Address.*?([\s\S]*?\b\d{3}\s*\d{3}\b)/i,
+
+      // Pattern 2: Any text block containing address-like text
+      /([\s\S]*?(?:street|road|avenue|lane|district|city|state|village|town).*?\b\d{3}\s*\d{3}\b)/i,
+
+      // Pattern 3: Any text ending with a 6-digit pincode
+      /([A-Za-z0-9\s,\/\-]+\b\d{3}\s*\d{3}\b)/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        let address = match[1].trim();
+        // Format with line breaks
+        const addressParts = address.split(/[,\n]+/);
+        address = addressParts.map(part => part.trim()).join('\n');
+        return address;
+      }
+    }
+
+    return 'Address Not Found';
   }
 
-  onPanFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      this.panFiles = Array.from(input.files);
+  // Extract mobile number from Aadhar card text
+  extractMobileNumber(text: string): string {
+    // Try each pattern in order of reliability
+    const patterns = [
+      // Pattern 1: After "Mobile Number" label
+      /Mobile Number.*?\n\s*(\d{10})/i,
+
+      // Pattern 2: After "Mobile" label
+      /Mobile.*?\n\s*(\d{10})/i,
+
+      // Pattern 3: 10-digit number in the format of a mobile number
+      /(\d{10})/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const mobile = match[1].trim();
+        // Validate mobile number format (10 digits)
+        if (/^\d{10}$/.test(mobile)) {
+          return mobile;
+        }
+      }
     }
+
+    return 'Mobile Not Found';
   }
 
   processAadharFiles(): void {
@@ -573,6 +747,45 @@ export class HomeComponent {
     this.extractCardDetails('PAN');
   }
 
+  // Process Aadhar cards with multi-pass thresholding
+  processAadharWithMultipassThresholding(): void {
+    this.isProcessing = true;
+    
+    // Set a timeout to prevent hanging
+    const timeoutId = setTimeout(() => {
+      console.error('Processing timed out after 60 seconds');
+      alert('Processing timed out. Try with a smaller image or use the regular upload button.');
+      this.isProcessing = false;
+    }, 60000); // 60 second timeout
+    
+    Promise.all(this.aadharFiles.map(file => this.processImageWithTesseract(file)))
+      .then(texts => {
+        clearTimeout(timeoutId); // Clear the timeout if successful
+        texts.forEach((text, index) => {
+          if (text) {
+            const details = this.extractDetails(text, 'AADHAR');
+            this.extractedResults.push({
+              fileName: this.aadharFiles[index].name,
+              cardType: 'AADHAR',
+              number: details.Number,
+              name: details.Name || this.nameExtracted || 'Not found',
+              dob: details.DOB,
+              address: details.Address,
+              mobile: details.Mobile
+            });
+            this.textExtracted = text;
+          }
+        });
+        this.isProcessing = false;
+      })
+      .catch(error => {
+        clearTimeout(timeoutId); // Clear the timeout on error
+        console.error('Error processing files with multi-pass:', error);
+        alert(`Error processing files: ${error.message || String(error)}`);
+        this.isProcessing = false;
+      });
+  }
+  
   // Download extracted data as CSV
   downloadCSV(cardType: 'ALL' | 'AADHAR' | 'PAN') {
     // Filter results based on card type
@@ -587,9 +800,9 @@ export class HomeComponent {
     }
 
     // Create CSV content
-    const headers = 'File Name,Card Type,Number,Name,DOB\n';
+    const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
     const rows = resultsToDownload.map(result =>
-      `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}"`
+      `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`
     ).join('\n');
     const csvContent = 'data:text/csv;charset=utf-8,' + headers + rows;
 
@@ -610,5 +823,174 @@ export class HomeComponent {
   // Remove an extracted result from the list
   removeExtractedResult(index: number): void {
     this.extractedResults.splice(index, 1);
+  }
+
+  // Handle CSV file selection
+  onCsvFileSelected(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    if (target.files && target.files.length > 0) {
+      this.selectedCsvFile = target.files[0];
+      console.log('CSV file selected:', this.selectedCsvFile.name);
+    } else {
+      this.selectedCsvFile = null;
+    }
+  }
+
+  async ngOnInit() {
+    try {
+      // Get the stored directory or file handle info
+      const storageInfo = localStorage.getItem('csvDirHandle');
+      if (!storageInfo) {
+        this.router.navigate(['/storage-select']);
+        return;
+      }
+
+      // Only re-initialize if we don't already have a valid handle
+      if (!this.fileHandleService.hasValidHandle()) {
+        await this.initializeFileAccess();
+      }
+      
+      // Update local reference to the file name
+      this.csvFileName = this.fileHandleService.getFileName();
+      
+      console.log(`File access ready: ${this.csvFileName}`);
+    } catch (error) {
+      console.error('Error initializing file access:', error);
+      alert('Failed to access your selected storage location. Please choose again.');
+      this.router.navigate(['/storage-select']);
+    }
+  }
+
+  async initializeFileAccess() {
+    try {
+      // Get the stored directory or file handle info
+      const storageInfo = localStorage.getItem('csvDirHandle');
+      if (!storageInfo) return;
+
+      const parsedInfo = JSON.parse(storageInfo);
+
+      // Check if we already have a valid handle in the service
+      if (this.fileHandleService.hasValidHandle()) {
+        return; // Skip initialization if we already have a handle
+      }
+
+      // We need to re-request permission as handles can't be stored in localStorage directly
+      if (parsedInfo.type === 'directory') {
+        // For directory selection, we need to prompt user again
+        const dirHandle = await window.showDirectoryPicker();
+        const fileHandle = await dirHandle.getFileHandle(this.csvFileName, { create: true });
+        
+        this.fileHandleService.setDirectoryHandle(dirHandle);
+        this.fileHandleService.setFileHandle(fileHandle);
+      } else {
+        // For file selection
+        const [fileHandle] = await window.showOpenFilePicker({
+          types: [{
+            description: 'CSV Files',
+            accept: {
+              'text/csv': ['.csv']
+            }
+          }]
+        });
+        
+        this.fileHandleService.setFileHandle(fileHandle);
+      }
+
+      this.csvFileName = this.fileHandleService.getFileName();
+      console.log(`File access initialized: ${this.csvFileName}`);
+    } catch (error) {
+      console.error('Error accessing file:', error);
+      alert('Failed to access your selected storage location. Please choose again.');
+      this.router.navigate(['/storage-select']);
+    }
+  }
+
+  // Save extraction results directly to the selected file
+  async saveToFile() {
+    const fileHandle = this.fileHandleService.getFileHandle();
+    
+    if (!fileHandle || this.extractedResults.length === 0) {
+      alert('No file access or no data to save');
+      return;
+    }
+
+    try {
+      // Get existing file content
+      const file = await fileHandle.getFile();
+      let existingContent = '';
+      
+      if (file.size > 0) {
+        const reader = new FileReader();
+        existingContent = await new Promise((resolve, reject) => {
+          reader.onload = (e) => resolve(e.target?.result as string || '');
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsText(file);
+        });
+      }
+
+      // Prepare new rows
+      const newRows = this.extractedResults.map(result =>
+        `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`
+      ).join('\n');
+      
+      // Create writable stream
+      const writable = await fileHandle.createWritable();
+
+      // Prepare content to write
+      let contentToWrite;
+      if (existingContent.length === 0) {
+        // Empty file - add header
+        const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
+        contentToWrite = headers + newRows;
+      } else {
+        // File has content - check if it has headers
+        const hasHeader = existingContent.includes('File Name,Card Type,Number');
+        
+        if (hasHeader) {
+          // Append to existing content
+          contentToWrite = existingContent.endsWith('\n') 
+            ? existingContent + newRows 
+            : existingContent + '\n' + newRows;
+        } else {
+          // File has no headers, add headers and rows
+          const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
+          contentToWrite = headers + existingContent + 
+            (existingContent.endsWith('\n') ? '' : '\n') + newRows;
+        }
+      }
+
+      // Write to file
+      await writable.write(contentToWrite);
+      await writable.close();
+
+      // Clear extracted results after saving to avoid duplication
+      alert(`Successfully saved ${this.extractedResults.length} records to ${this.csvFileName}`);
+      
+      // Clear results after saving
+      // this.extractedResults = [];
+    } catch (error) {
+      console.error('Error saving to file:', error);
+      alert(`Error saving to file: ${error}`);
+    }
+  }
+
+  // Navigate to storage selection page
+  changeStorageLocation() {
+    this.router.navigate(['/storage-select']);
+  }
+
+  // File handling methods
+  onAadharFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files) {
+      this.aadharFiles = Array.from(input.files);
+    }
+  }
+
+  onPanFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files) {
+      this.panFiles = Array.from(input.files);
+    }
   }
 }

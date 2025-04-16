@@ -1,0 +1,62 @@
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Extraction History</h2>
+    <button class="btn btn-primary" (click)="downloadCSV()">
+      Download All Data (CSV)
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="text-center">
+    <div class="spinner-border" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">
+    {{ error }}
+  </div>
+
+  <div *ngIf="!loading && !error" class="table-responsive">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Document Type</th>
+          <th>Name</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let extraction of extractions">
+          <td>{{ formatDate(extraction.timestamp) }}</td>
+          <td>{{ extraction.documentType | titlecase }}</td>
+          <td>{{ extraction.name }}</td>
+          <td>
+            <button class="btn btn-sm btn-info" data-bs-toggle="modal" [attr.data-bs-target]="'#details-' + extraction._id">
+              View Details
+            </button>
+
+            <!-- Modal -->
+            <div class="modal fade" [id]="'details-' + extraction._id" tabindex="-1">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Extraction Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <pre>{{ extraction.extractedData | json }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="!loading && !error && extractions.length === 0" class="text-center mt-4">
+    <p>No extractions found.</p>
+  </div>
+</div>
