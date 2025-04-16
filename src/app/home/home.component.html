@@ -49,13 +49,11 @@
                 <tr>
                   <th style="width: 300px;">Document</th>
                   <th>Name</th>
-                  <th>Number</th>
+                  <th style="width: 200px;">ID#</th>
                   <th>DOB</th>
                   <th style="width: 250px;">Address</th>
                   <th>Mobile</th>
-                  <th>File Name</th>
-                  <th>Card Type</th>
-                  <th>Action</th>
+                  <th>Remove</th>
                 </tr>
               </thead>
               <tbody>
@@ -82,20 +80,18 @@
                     <td>
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.name">
                     </td>
-                    <td>
+                    <td style="width: 200px;">
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.number">
                     </td>
                     <td>
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.dob">
                     </td>
                     <td style="width: 250px;">
-                      <textarea class="form-control" rows="3" [(ngModel)]="result.address" style="font-size: 0.875rem;"></textarea>
+                      <textarea class="form-control" rows="5" [(ngModel)]="result.address" style="font-size: 0.875rem; min-height: 220px; resize: vertical;"></textarea>
                     </td>
                     <td>
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.mobile">
                     </td>
-                    <td>{{ result.fileName }}</td>
-                    <td>{{ result.cardType }}</td>
                     <td>
                       <button class="btn btn-sm btn-danger" (click)="removeExtractedResult(i)">✕</button>
                     </td>
