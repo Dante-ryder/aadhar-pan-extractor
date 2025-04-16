@@ -888,8 +888,12 @@ export class HomeComponent {
   }
 
   // Remove an extracted result from the list
-  removeExtractedResult(index: number): void {
-    this.extractedResults.splice(index, 1);
+  removeExtractedResult(reversedIndex: number): void {
+    // Calculate the actual index in the original array since we display in reverse order
+    const actualIndex = this.extractedResults.length - 1 - reversedIndex;
+    if (actualIndex >= 0 && actualIndex < this.extractedResults.length) {
+      this.extractedResults.splice(actualIndex, 1);
+    }
   }
 
   // Handle CSV file selection

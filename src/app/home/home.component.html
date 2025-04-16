@@ -57,7 +57,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (result of extractedResults; track result.fileName; let i = $index) {
+                @for (result of extractedResults.slice().reverse(); track result.fileName; let i = $index) {
                   <tr style="vertical-align: middle;">
                     <td class="text-center" style="width: 300px;">
                       @if (result.sourceUrl) {
