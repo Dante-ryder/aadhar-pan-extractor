@@ -1109,6 +1109,10 @@ export class HomeComponent {
     const target = event.target as HTMLImageElement;
     if (!target) return;
     
+    // First, calculate the aspect ratio of the original image
+    const naturalRatio = target.naturalWidth / target.naturalHeight;
+    const isLandscape = naturalRatio > 1;
+    
     // Create a zoomed preview container if it doesn't exist
     if (!this.zoomedElement) {
       this.zoomedElement = document.createElement('div');
@@ -1120,11 +1124,30 @@ export class HomeComponent {
       this.zoomedElement.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
       this.zoomedElement.style.overflow = 'hidden';
       this.zoomedElement.style.padding = '0';
-      this.zoomedElement.style.width = '300px';
-      this.zoomedElement.style.height = '300px';
-      this.zoomedElement.style.borderRadius = '50%';
       document.body.appendChild(this.zoomedElement);
     }
+    
+    // Set dimensions based on aspect ratio - maintain 300px for the smaller dimension
+    let magWidth, magHeight;
+    if (isLandscape) {
+      // For landscape images
+      magHeight = 300;
+      magWidth = 300 * naturalRatio;
+      // Cap width at 450px to avoid overly wide magnifiers
+      magWidth = Math.min(magWidth, 450);
+    } else {
+      // For portrait images
+      magWidth = 300;
+      magHeight = 300 / naturalRatio;
+      // Cap height at 450px to avoid overly tall magnifiers
+      magHeight = Math.min(magHeight, 450);
+    }
+    
+    // Update magnifier dimensions
+    this.zoomedElement.style.width = `${magWidth}px`;
+    this.zoomedElement.style.height = `${magHeight}px`;
+    // Not using border-radius (circle) anymore since we have variable dimensions
+    this.zoomedElement.style.borderRadius = '10px';
 
     // Get cursor position relative to image
     const rect = target.getBoundingClientRect();
@@ -1138,21 +1161,20 @@ export class HomeComponent {
     // Create zoomed image
     const zoomedImg = document.createElement('img');
     zoomedImg.src = target.src;
-    zoomedImg.style.width = '900px';
-    zoomedImg.style.height = '900px';
+    
+    // Scale image to fit magnifier with proper zooming
+    const zoomFactor = 3;
+    const zoomWidth = magWidth * zoomFactor;
+    const zoomHeight = magHeight * zoomFactor;
+    
+    zoomedImg.style.width = `${zoomWidth}px`;
+    zoomedImg.style.height = `${zoomHeight}px`;
     zoomedImg.style.objectFit = 'cover';
     zoomedImg.style.position = 'absolute';
     
-    // Position the image to show the hovered area
-    // Calculate the center point for the magnifier
-    const zoomWidth = 900;
-    const zoomHeight = 900;
-    const magnifierWidth = 300;
-    const magnifierHeight = 300;
-    
     // Center the magnified area on cursor position
-    const posX = -(percentX * zoomWidth - magnifierWidth/2);
-    const posY = -(percentY * zoomHeight - magnifierHeight/2);
+    const posX = -(percentX * zoomWidth - magWidth/2);
+    const posY = -(percentY * zoomHeight - magHeight/2);
     
     zoomedImg.style.left = `${posX}px`;
     zoomedImg.style.top = `${posY}px`;
@@ -1162,7 +1184,7 @@ export class HomeComponent {
     this.zoomedElement.appendChild(zoomedImg);
     
     // Position the zoomed element near the cursor
-    this.zoomedElement.style.display = 'block'; // Make sure this is set
+    this.zoomedElement.style.display = 'block';
     this.updateZoomPosition(event);
     
     // Add mousemove listener to update position when cursor moves
@@ -1183,6 +1205,10 @@ export class HomeComponent {
     const target = event.target as HTMLImageElement;
     if (!target.classList.contains('document-preview')) return;
     
+    // Get magnifier dimensions
+    const magWidth = parseInt(this.zoomedElement.style.width, 10);
+    const magHeight = parseInt(this.zoomedElement.style.height, 10);
+    
     // Get cursor position relative to image
     const rect = target.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -1195,16 +1221,13 @@ export class HomeComponent {
     // Update the zoomed image position
     const zoomedImg = this.zoomedElement.querySelector('img');
     if (zoomedImg) {
-      // Calculate the center point for the magnifier
-      const zoomWidth = 900;
-      const zoomHeight = 900;
-      const magnifierWidth = 300;
-      const magnifierHeight = 300;
+      // Get zoomed image dimensions
+      const zoomWidth = parseInt(zoomedImg.style.width, 10);
+      const zoomHeight = parseInt(zoomedImg.style.height, 10);
       
       // Center the magnified area on cursor position
-      // Multiply by zoom width/height, then offset by half the magnifier width/height
-      const posX = -(percentX * zoomWidth - magnifierWidth/2);
-      const posY = -(percentY * zoomHeight - magnifierHeight/2);
+      const posX = -(percentX * zoomWidth - magWidth/2);
+      const posY = -(percentY * zoomHeight - magHeight/2);
       
       zoomedImg.style.left = `${posX}px`;
       zoomedImg.style.top = `${posY}px`;
@@ -1221,8 +1244,8 @@ export class HomeComponent {
     // Make sure the zoomed image stays within viewport
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const zoomWidth = 300; // Must match the width set in showZoomedImage
-    const zoomHeight = 300; // Must match the height set in showZoomedImage
+    const zoomWidth = parseInt(this.zoomedElement.style.width, 10);
+    const zoomHeight = parseInt(this.zoomedElement.style.height, 10);
     
     if (left + zoomWidth > viewportWidth) {
       left = event.clientX - zoomWidth - padding;

@@ -51,7 +51,7 @@
                   <th>Name</th>
                   <th>Number</th>
                   <th>DOB</th>
-                  <th>Address</th>
+                  <th style="width: 250px;">Address</th>
                   <th>Mobile</th>
                   <th>File Name</th>
                   <th>Card Type</th>
@@ -88,8 +88,8 @@
                     <td>
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.dob">
                     </td>
-                    <td>
-                      <input type="text" class="form-control form-control-sm" [(ngModel)]="result.address">
+                    <td style="width: 250px;">
+                      <textarea class="form-control" rows="3" [(ngModel)]="result.address" style="font-size: 0.875rem;"></textarea>
                     </td>
                     <td>
                       <input type="text" class="form-control form-control-sm" [(ngModel)]="result.mobile">
