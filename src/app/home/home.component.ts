@@ -1119,29 +1119,96 @@ export class HomeComponent {
       this.zoomedElement.style.backgroundColor = 'white';
       this.zoomedElement.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
       this.zoomedElement.style.overflow = 'hidden';
-      this.zoomedElement.style.padding = '0'; // Remove padding
+      this.zoomedElement.style.padding = '0';
+      this.zoomedElement.style.width = '300px';
+      this.zoomedElement.style.height = '300px';
+      this.zoomedElement.style.borderRadius = '50%';
       document.body.appendChild(this.zoomedElement);
     }
 
+    // Get cursor position relative to image
+    const rect = target.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    // Calculate percentages of cursor position on the image
+    const percentX = mouseX / rect.width;
+    const percentY = mouseY / rect.height;
+    
     // Create zoomed image
     const zoomedImg = document.createElement('img');
     zoomedImg.src = target.src;
-    zoomedImg.style.width = '900px'; // 7.5x the original width 
-    zoomedImg.style.height = '750px'; // 7.5x the original height
-    zoomedImg.style.objectFit = 'cover'; // Changed from 'contain' to 'cover' to fill the space
-    zoomedImg.style.display = 'block'; // Ensure image is block-level
-    zoomedImg.style.margin = '0'; // Remove margins
+    zoomedImg.style.width = '900px';
+    zoomedImg.style.height = '900px';
+    zoomedImg.style.objectFit = 'cover';
+    zoomedImg.style.position = 'absolute';
+    
+    // Position the image to show the hovered area
+    // Calculate the center point for the magnifier
+    const zoomWidth = 900;
+    const zoomHeight = 900;
+    const magnifierWidth = 300;
+    const magnifierHeight = 300;
+    
+    // Center the magnified area on cursor position
+    const posX = -(percentX * zoomWidth - magnifierWidth/2);
+    const posY = -(percentY * zoomHeight - magnifierHeight/2);
+    
+    zoomedImg.style.left = `${posX}px`;
+    zoomedImg.style.top = `${posY}px`;
     
     // Clear previous content and add the new zoomed image
     this.zoomedElement.innerHTML = '';
     this.zoomedElement.appendChild(zoomedImg);
     
     // Position the zoomed element near the cursor
-    this.zoomedElement.style.display = 'block';
+    this.zoomedElement.style.display = 'block'; // Make sure this is set
     this.updateZoomPosition(event);
     
     // Add mousemove listener to update position when cursor moves
-    document.addEventListener('mousemove', this.updateZoomPosition.bind(this));
+    document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+  }
+
+  handleMouseMove(event: MouseEvent) {
+    // Update the tooltip position
+    this.updateZoomPosition(event);
+    
+    // Update the magnified area
+    this.updateMagnifiedArea(event);
+  }
+  
+  updateMagnifiedArea(event: MouseEvent) {
+    if (!this.zoomedElement) return;
+    
+    const target = event.target as HTMLImageElement;
+    if (!target.classList.contains('document-preview')) return;
+    
+    // Get cursor position relative to image
+    const rect = target.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    // Calculate percentages of cursor position on the image
+    const percentX = mouseX / rect.width;
+    const percentY = mouseY / rect.height;
+    
+    // Update the zoomed image position
+    const zoomedImg = this.zoomedElement.querySelector('img');
+    if (zoomedImg) {
+      // Calculate the center point for the magnifier
+      const zoomWidth = 900;
+      const zoomHeight = 900;
+      const magnifierWidth = 300;
+      const magnifierHeight = 300;
+      
+      // Center the magnified area on cursor position
+      // Multiply by zoom width/height, then offset by half the magnifier width/height
+      const posX = -(percentX * zoomWidth - magnifierWidth/2);
+      const posY = -(percentY * zoomHeight - magnifierHeight/2);
+      
+      zoomedImg.style.left = `${posX}px`;
+      zoomedImg.style.top = `${posY}px`;
+    }
   }
 
   updateZoomPosition(event: MouseEvent) {
@@ -1154,8 +1221,8 @@ export class HomeComponent {
     // Make sure the zoomed image stays within viewport
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const zoomWidth = 900; // Must match the width set in showZoomedImage
-    const zoomHeight = 750; // Must match the height set in showZoomedImage
+    const zoomWidth = 300; // Must match the width set in showZoomedImage
+    const zoomHeight = 300; // Must match the height set in showZoomedImage
     
     if (left + zoomWidth > viewportWidth) {
       left = event.clientX - zoomWidth - padding;
@@ -1172,7 +1239,7 @@ export class HomeComponent {
   hideZoomedImage() {
     if (this.zoomedElement) {
       this.zoomedElement.style.display = 'none';
-      document.removeEventListener('mousemove', this.updateZoomPosition.bind(this));
+      document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
     }
   }
 

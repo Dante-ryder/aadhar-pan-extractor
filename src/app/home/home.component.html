@@ -47,7 +47,7 @@
             <table class="table table-striped">
               <thead>
                 <tr>
-                  <th style="width: 150px;">Document</th>
+                  <th style="width: 300px;">Document</th>
                   <th>Name</th>
                   <th>Number</th>
                   <th>DOB</th>
@@ -60,13 +60,13 @@
               </thead>
               <tbody>
                 @for (result of extractedResults; track result.fileName; let i = $index) {
-                  <tr style="height: 120px; vertical-align: middle;">
-                    <td class="text-center" style="width: 150px;">
+                  <tr style="vertical-align: middle;">
+                    <td class="text-center" style="width: 300px;">
                       @if (result.sourceUrl) {
-                        <div class="image-zoom-container" style="position: relative; height: 100px; width: 120px; margin: 0 auto;">
+                        <div class="image-zoom-container" style="position: relative; max-height: 300px; width: 100%; margin: 0 auto;">
                           <a [href]="result.sourceUrl" target="_blank">
                             <img [src]="result.sourceUrl" class="img-thumbnail document-preview" 
-                                 style="height: 100px; width: 120px; object-fit: contain; transition: transform 0.3s ease;"
+                                 style="max-height: 280px; max-width: 100%; width: auto; height: auto; object-fit: contain; transition: transform 0.3s ease;"
                                  alt="Document preview"
                                  (mouseover)="showZoomedImage($event)" 
                                  (mouseout)="hideZoomedImage()">
