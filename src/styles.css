@@ -1,1 +1,75 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Import the ngx-toastr styles first */
+@import 'ngx-toastr/toastr';
+
+/* Custom Toastr Styling */
+.toast-container .ngx-toastr {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2) !important;
+  border-radius: 8px !important;
+  padding: 20px !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
+}
+
+/* Success toast */
+.toast-success {
+  background-color: #4ade80 !important; /* Bright green */
+  border-left: 5px solid #22c55e !important;
+  color: #14532d !important; /* Dark green text */
+}
+
+/* Error toast */
+.toast-error {
+  background-color: #fb7185 !important; /* Bright red */
+  border-left: 5px solid #e11d48 !important;
+  color: #881337 !important; /* Dark red text */
+}
+
+/* Info toast */
+.toast-info {
+  background-color: #38bdf8 !important; /* Bright blue */
+  border-left: 5px solid #0284c7 !important;
+  color: #0c4a6e !important; /* Dark blue text */
+}
+
+/* Warning toast */
+.toast-warning {
+  background-color: #fbbf24 !important; /* Bright yellow */
+  border-left: 5px solid #d97706 !important;
+  color: #78350f !important; /* Dark amber text */
+}
+
+/* Close button styling */
+.toast-close-button {
+  font-size: 24px !important;
+  opacity: 0.7 !important;
+  margin-top: -10px !important;
+  margin-right: -10px !important;
+}
+
+.toast-close-button:hover {
+  opacity: 1 !important;
+}
+
+/* Message styling */
+.toast-message {
+  padding: 5px 0 !important;
+}
+
+/* Add animations */
+.toast-container .ngx-toastr.toast-animation {
+  animation: toast-slide-in 0.3s ease-out !important;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

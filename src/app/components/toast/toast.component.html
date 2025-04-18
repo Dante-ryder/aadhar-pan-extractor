@@ -1,0 +1,10 @@
+<div class="toast-container">
+  @for (toast of toasts; track toast) {
+    <div class="toast {{ toast.type }}">
+      <div class="toast-content">
+        <span class="toast-message">{{ toast.message }}</span>
+        <span class="close-btn" (click)="removeToast(toast)">×</span>
+      </div>
+    </div>
+  }
+</div>
