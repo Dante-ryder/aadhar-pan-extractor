@@ -1128,7 +1128,7 @@ export class HomeComponent implements OnInit {
       // First approach: Look for relationship indicators to identify the name line
       for (let i = 0; i < lines.length; i++) {
         // Check if current line contains relationship indicator
-        if (/S\/O|D\/O|C\/O|W\/O|S\/0|D\/0|C\/0|W\/0|5\/O|5\/0/i.test(lines[i])) {
+        if (/S\/O|D\/O|C\/O|W\/O|S\/0|D\/0|C\/0|W\/0|5\/O|5\/0|\$\/0|\$\/O/i.test(lines[i])) {
           console.log('Found relationship indicator in line:', lines[i]);
           
           // Begin capturing from this line (inclusive of relationship indicator)
