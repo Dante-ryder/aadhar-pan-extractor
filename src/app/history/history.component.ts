@@ -53,9 +53,9 @@ export class HistoryComponent implements OnInit {
     }
     
     // Create CSV content
-    const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile,Timestamp\n';
+    const headers = '"File Name","Card Type","Number","Name","DOB","Address","Mobile","PAN","Timestamp"\n';
     const rows = this.extractions.map(extraction =>
-      `"${extraction.fileName}","${extraction.documentType}","${extraction.number}","${extraction.name}","${extraction.dob || ''}","${extraction.address || ''}","${extraction.mobile || ''}","${extraction.timestamp}"`
+      `"${extraction.fileName}","${extraction.documentType}","${extraction.number}","${extraction.name}","${extraction.dob || ''}","${extraction.address || ''}","${extraction.mobile || ''}","${extraction.number}","${extraction.timestamp}"`
     ).join('\n');
     const csvContent = 'data:text/csv;charset=utf-8,' + headers + rows;
 

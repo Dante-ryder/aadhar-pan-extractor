@@ -44,7 +44,7 @@ export class StorageSelectComponent {
       // Write CSV header if file is empty
       const file = await csvHandle.getFile();
       if (file.size === 0) {
-        await writable.write('File Name,Card Type,Number,Name,DOB,Address,Mobile\n');
+        await writable.write('"File Name","Card Type","Number","Name","DOB","Address","Mobile","PAN"\n');
       }
       await writable.close();
 

@@ -40,6 +40,7 @@ export class HomeComponent implements OnInit {
     dob?: string, 
     address?: string, 
     mobile?: string,
+    pan?: string,
     sourceUrl?: string,
     fullText?: string
   }> = [];
@@ -1244,6 +1245,7 @@ export class HomeComponent implements OnInit {
               dob: details.DOB || '',
               address: details.Address || '',
               mobile: details.Mobile || '',
+              pan: details.Number,
               sourceUrl: this.getObjectUrl(panFile)
             });
             this.textExtracted = text;
@@ -1274,9 +1276,9 @@ export class HomeComponent implements OnInit {
     }
 
     // Create CSV content
-    const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
+    const headers = '"File Name","Card Type","Number","Name","DOB","Address","Mobile","PAN"\n';
     const rows = resultsToDownload.map(result =>
-      `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`
+      `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`
     ).join('\n');
     const csvContent = 'data:text/csv;charset=utf-8,' + headers + rows;
 
@@ -1412,9 +1414,9 @@ export class HomeComponent implements OnInit {
       
       if (existingContent.length === 0) {
         // Empty file - add header and all results
-        const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
+        const headers = '"File Name","Card Type","Number","Name","DOB","Address","Mobile","PAN"\n';
         const newRows = this.extractedResults.map(result =>
-          `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`
+          `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`
         ).join('\n');
         contentToWrite = headers + newRows;
         newCount = this.extractedResults.length;
@@ -1429,25 +1431,25 @@ export class HomeComponent implements OnInit {
               // Update existing line
               const lineIndex = existingAadharNumbers.get(result.number);
               if (lineIndex !== undefined) {
-                existingLines[lineIndex] = `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`;              
+                existingLines[lineIndex] = `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`;              
                 updatedCount++;
               } else {
                 // If somehow lineIndex is undefined, add as new line instead
-                existingLines.push(`"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`);
+                existingLines.push(`"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`);
                 newCount++;
               }
             } else {
               // Add new line
-              existingLines.push(`"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`);
+              existingLines.push(`"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`);
               newCount++;
             }
           }
           contentToWrite = existingLines.join('\n');
         } else {
           // File has no headers, add headers first
-          const headers = 'File Name,Card Type,Number,Name,DOB,Address,Mobile\n';
+          const headers = '"File Name","Card Type","Number","Name","DOB","Address","Mobile","PAN"\n';
           const newRows = this.extractedResults.map(result =>
-            `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}"`
+            `"${result.fileName}","${result.cardType}","${result.number}","${result.name}","${result.dob || ''}","${result.address || ''}","${result.mobile || ''}","${result.pan || ''}"`
           ).join('\n');
           
           contentToWrite = headers + existingContent + 
